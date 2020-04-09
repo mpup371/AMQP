@@ -1,0 +1,22 @@
+{
+	"folders": [
+		{
+			"path": "bench"
+		},
+		{
+			"path": "client"
+		},
+		{
+			"path": "server"
+		},
+		{
+			"path": "broker"
+		},
+		{
+			"path": "send"
+		},
+		{
+			"path": "examples"
+		}
+	]
+}
