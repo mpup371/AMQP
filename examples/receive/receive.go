@@ -99,6 +99,7 @@ func main() {
 					log.Fatalf("receive error %v: %v", urlStr, err)
 				}
 			}
+
 		}(urlStr)
 	}
 

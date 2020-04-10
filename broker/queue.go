@@ -14,7 +14,11 @@ func (q *queue) Add(m amqp.Message) {
 }
 
 func (q *queue) Next() amqp.Message {
-	return (*fifo.Queue)(q).Next().(amqp.Message)
+	m := (*fifo.Queue)(q).Next()
+	if m == nil {
+		return nil
+	}
+	return m.(amqp.Message)
 }
 
 // Concurrent-safe map of queues.

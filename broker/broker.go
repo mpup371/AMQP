@@ -84,13 +84,15 @@ func (c *connection) run() {
 
 // receiver receives messages and pushes to a queue.
 func (c *connection) receiver(receiver electron.Receiver) {
+	debugf("receiver to queue %s", receiver.Target())
+
 	beginConnection := time.Now()
 
 	q := c.broker.queues.Get(receiver.Target())
 	var count int = 0
 	for {
 		if rm, err := receiver.Receive(); err == nil {
-			debugf("%v: received %v", receiver, rm.Message.Body())
+			// debugf("%v: received %v", receiver, rm.Message.Body())
 			q.Add(rm.Message)
 			if *ack {
 				rm.Accept()
@@ -110,6 +112,7 @@ func (c *connection) receiver(receiver electron.Receiver) {
 
 // sender pops messages from a queue and sends them.
 func (c *connection) sender(sender electron.Sender) {
+	debugf("sender from queue %s", sender.Source())
 	q := c.broker.queues.Get(sender.Source())
 	for {
 		if sender.Error() != nil {
@@ -122,7 +125,13 @@ func (c *connection) sender(sender electron.Sender) {
 			// c.broker.sent <- sm                    // Record sent message
 			// sender.SendAsync(m, c.broker.acks, sm) // Receive outcome on c.broker.acks with Value sm
 			//TODO: timeout paramétrable
-			sender.SendSyncTimeout(m, 10*time.Second)
+			outcome := sender.SendSyncTimeout(m, 10*time.Second)
+			if outcome.Status != electron.Accepted { // Error, release or rejection
+				debugf("message send error :status %v, error %v", outcome.Status, outcome.Error)
+			} else {
+				debugf("message acknowledge by receiver")
+			}
+
 		}
 		select {
 		case <-sender.Done(): // break if sender is closed

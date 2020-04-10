@@ -26,9 +26,10 @@ import (
 	"os"
 	"strings"
 	"sync"
+	"time"
 
-	"github.com/apache/qpid-proton/go/pkg/amqp"
-	"github.com/apache/qpid-proton/go/pkg/electron"
+	"qpid.apache.org/amqp"
+	"qpid.apache.org/electron"
 )
 
 // Usage and command-line flags
@@ -74,6 +75,7 @@ func main() {
 		debugf("Connecting to %s\n", urlStr)
 		go func(urlStr string) { // Start the goroutine
 			defer wait.Done() // Notify main() when this goroutine is done.
+			beginConnection := time.Now()
 			url, err := amqp.ParseURL(urlStr)
 			fatalIf(err)
 			c, err := container.Dial("tcp", url.Host) // NOTE: Dial takes just the Host part of the URL
@@ -99,6 +101,11 @@ func main() {
 					log.Fatalf("receive error %v: %v", urlStr, err)
 				}
 			}
+			endConnection := time.Now()
+			expect := int(*count) * len(urls)
+			elapsed := endConnection.Sub(beginConnection)
+			ratio := int((float64)(expect) / elapsed.Seconds())
+			log.Printf("%d messages sent in %s (%d msg/s)", expect, elapsed, ratio)
 		}(urlStr)
 	}
 

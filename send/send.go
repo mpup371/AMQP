@@ -124,7 +124,7 @@ func main() {
 			} else if out.Status != electron.Accepted {
 				log.Fatalf("acknowledgement[%v] unexpected status: %v", i, out.Status)
 			} else {
-				debugf("acknowledgement[%v]  %v (%v)\n", i, out.Value, out.Status)
+				debugf("acknowledgement[%v] %v (%v)\n", i, out.Value, out.Status)
 			}
 		}
 		close(sentChan)
