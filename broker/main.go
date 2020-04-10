@@ -50,7 +50,7 @@ var credit = flag.Int("credit", 100, "Receiver credit window")
 var qsize = flag.Int("qsize", 1000, "Max queue size")
 var debug = flag.Bool("debug", false, "Print detailed debug output")
 var debugf = func(format string, data ...interface{}) {} // Default no debugging output
-var ack = flag.Bool("ack", true, "Expect for acknowledgements")
+var ack = flag.Bool("ack", true, "Send acknowledgements")
 
 func main() {
 	flag.Usage = usage
@@ -62,8 +62,8 @@ func main() {
 	b := &broker{
 		queues:    makeQueues(*qsize),
 		container: electron.NewContainer(fmt.Sprintf("broker[%v]", os.Getpid())),
-		acks:      make(chan electron.Outcome),
-		sent:      make(chan sentMessage),
+		// acks:      make(chan electron.Outcome),
+		sent: make(chan sentMessage),
 	}
 
 	if err := b.run(); err != nil {

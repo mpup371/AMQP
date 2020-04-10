@@ -12,10 +12,10 @@ import (
 
 // State for the broker
 type broker struct {
-	queues    queues                // A collection of queues.
-	container electron.Container    // electron.Container manages AMQP connections.
-	sent      chan sentMessage      // Channel to record sent messages.
-	acks      chan electron.Outcome // Channel to receive the Outcome of sent messages.
+	queues    queues             // A collection of queues.
+	container electron.Container // electron.Container manages AMQP connections.
+	sent      chan sentMessage   // Channel to record sent messages.
+	// acks      chan electron.Outcome // Channel to receive the Outcome of sent messages.
 }
 
 // Record of a sent message and the queue it came from.
@@ -34,7 +34,7 @@ func (b *broker) run() error {
 	defer listener.Close()
 	fmt.Printf("Listening on %v\n", listener.Addr())
 
-	go b.acknowledgements() // Handles acknowledgements for all connections.
+	// go b.acknowledgements() // Handles acknowledgements for all connections.
 
 	// Start a goroutine for each new connections
 	for {
@@ -91,7 +91,7 @@ func (c *connection) receiver(receiver electron.Receiver) {
 	for {
 		if rm, err := receiver.Receive(); err == nil {
 			debugf("%v: received %v", receiver, rm.Message.Body())
-			q <- rm.Message
+			q.Add(rm.Message)
 			if *ack {
 				rm.Accept()
 			}
@@ -116,14 +116,15 @@ func (c *connection) sender(sender electron.Sender) {
 			debugf("%v closed: %v", sender, sender.Error())
 			return
 		}
-		select {
-
-		case m := <-q:
+		if m := q.Next(); m != nil {
 			debugf("%v: sent %v", sender, m.Body())
-			sm := sentMessage{m, q}
-			c.broker.sent <- sm                    // Record sent message
-			sender.SendAsync(m, c.broker.acks, sm) // Receive outcome on c.broker.acks with Value sm
-
+			// TODO sm := sentMessage{m, q}
+			// c.broker.sent <- sm                    // Record sent message
+			// sender.SendAsync(m, c.broker.acks, sm) // Receive outcome on c.broker.acks with Value sm
+			//TODO: timeout paramétrable
+			sender.SendSyncTimeout(m, 10*time.Second)
+		}
+		select {
 		case <-sender.Done(): // break if sender is closed
 			break
 		}
@@ -135,23 +136,24 @@ func (c *connection) sender(sender electron.Sender) {
 // We could have handled outcomes separately per-connection, per-sender or even
 // per-message. Message outcomes are returned via channels defined by the user
 // so they can be grouped in any way that suits the application.
-func (b *broker) acknowledgements() {
-	sentMap := make(map[sentMessage]bool)
-	for {
-		select {
-		case sm, ok := <-b.sent: // A local sender records that it has sent a message.
-			if ok {
-				sentMap[sm] = true
-			} else {
-				return // Closed
-			}
-		case outcome := <-b.acks: // The message outcome is available
-			sm := outcome.Value.(sentMessage)
-			delete(sentMap, sm)
-			if outcome.Status != electron.Accepted { // Error, release or rejection
-				sm.q.PutBack(sm.m) // Put the message back on the queue.
-				debugf("message %v put back, status %v, error %v", sm.m.Body(), outcome.Status, outcome.Error)
-			}
-		}
-	}
-}
+//TODO
+// func (b *broker) acknowledgements() {
+// 	sentMap := make(map[sentMessage]bool)
+// 	for {
+// 		select {
+// 		case sm, ok := <-b.sent: // A local sender records that it has sent a message.
+// 			if ok {
+// 				sentMap[sm] = true
+// 			} else {
+// 				return // Closed
+// 			}
+// 		case outcome := <-b.acks: // The message outcome is available
+// 			sm := outcome.Value.(sentMessage)
+// 			delete(sentMap, sm)
+// 			if outcome.Status != electron.Accepted { // Error, release or rejection
+// 				sm.q.Add(sm.m) // Put the message back on the queue.
+// 				debugf("message %v put back, status %v, error %v", sm.m.Body(), outcome.Status, outcome.Error)
+// 			}
+// 		}
+// 	}
+// }

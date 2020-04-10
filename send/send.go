@@ -96,7 +96,7 @@ func main() {
 						} else if out.Status != electron.Accepted {
 							log.Fatalf("acknowledgement[%v] unexpected status: %v", i, out.Status)
 						} else {
-							debugf("acknowledgement[%v]  %v (%v)\n", i, out.Value, out.Status)
+							debugf("synack[%v]  %v (%v)\n", i, out.Value, out.Status)
 						}
 					} else {
 						s.SendAsync(m, sentChan, body) // Outcome will be sent to sentChan
@@ -105,7 +105,6 @@ func main() {
 					s.SendForget(m)
 				}
 			}
-			s.Close(nil) //ferme également la connexion ?
 		}(urlStr)
 	}
 	endConnection := time.Now()
