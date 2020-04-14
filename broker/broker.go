@@ -128,14 +128,15 @@ func (c *connection) sender(sender electron.Sender) {
 			outcome := sender.SendSyncTimeout(m, 10*time.Second)
 			if outcome.Status != electron.Accepted { // Error, release or rejection
 				debugf("message send error :status %v, error %v", outcome.Status, outcome.Error)
+				break
 			} else {
-				debugf("message acknowledge by receiver")
+				debugf("message acknowledged by receiver")
 			}
-
 		}
 		select {
 		case <-sender.Done(): // break if sender is closed
 			break
+		default:
 		}
 	}
 }

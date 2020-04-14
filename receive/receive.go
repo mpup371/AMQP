@@ -96,6 +96,7 @@ func main() {
 					rm.Accept()
 					messages <- rm.Message
 				} else if err == electron.Closed {
+					debugf("Connection closed")
 					return
 				} else {
 					log.Fatalf("receive error %v: %v", urlStr, err)
