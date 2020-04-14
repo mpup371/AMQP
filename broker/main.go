@@ -32,7 +32,7 @@ import (
 	"log"
 	"os"
 
-	"qpid.apache.org/electron"
+	"github.com/apache/qpid-proton/go/pkg/electron"
 )
 
 // Usage and command-line flags

@@ -3,8 +3,8 @@ package main
 import (
 	"sync"
 
+	"github.com/apache/qpid-proton/go/pkg/amqp"
 	fifo "github.com/foize/go.fifo"
-	"qpid.apache.org/amqp"
 )
 
 type queue fifo.Queue
