@@ -50,7 +50,7 @@ var addr = flag.String("addr", ":amqp", "Network address to listen on, in the fo
 var credit = flag.Int("credit", 100, "Receiver credit window")
 var qsize = flag.Int("qsize", 1000, "Max queue size")
 var debug = flag.Bool("debug", false, "Print detailed debug output")
-var debugf = func(format string, data ...interface{}) {} // Default no debugging output
+var debugf logger.DebugFunction // Default no debugging output
 var ack = flag.Bool("ack", true, "Send acknowledgements")
 
 func main() {

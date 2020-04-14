@@ -44,7 +44,7 @@ URLs are of the form "amqp://<host>:<port>/<amqp-address>"
 
 var count = flag.Int64("count", 1, "Send this many messages to each address.")
 var debug = flag.Bool("debug", false, "Print detailed debug output")
-var debugf = func(format string, data ...interface{}) {} // Default no debugging output
+var debugf logger.DebugFunction // Default no debugging output
 var ack = flag.Bool("ack", true, "Expect for acknowledgements")
 var synack = flag.Bool("sync", false, "Wait for ack")
 
@@ -73,7 +73,7 @@ func main() {
 	beginConnection := time.Now()
 	// Start a goroutine for each URL to send messages.
 	for _, urlStr := range urls {
-		debugf("Connecting to %", urlStr)
+		debugf("main()", "Connecting to %", urlStr)
 		go func(urlStr string) {
 			defer wait.Done() // Notify main() when this goroutine is done.
 			url, err := amqp.ParseURL(urlStr)
@@ -93,11 +93,11 @@ func main() {
 					if *synack {
 						out := s.SendSync(m)
 						if out.Error != nil {
-							log.Fatalf("acknowledgement[%v] %v error: %v", i, out.Value, out.Error)
+							logger.Fatalf(urlStr, "acknowledgement[%v] %v error: %v", i, out.Value, out.Error)
 						} else if out.Status != electron.Accepted {
-							log.Fatalf("acknowledgement[%v] unexpected status: %v", i, out.Status)
+							logger.Fatalf(urlStr, "acknowledgement[%v] unexpected status: %v", i, out.Status)
 						} else {
-							debugf("synack[%v]  %v (%v)", i, out.Value, out.Status)
+							debugf(urlStr, "synack[%v]  %v (%v)", i, out.Value, out.Status)
 						}
 					} else {
 						s.SendAsync(m, sentChan, body) // Outcome will be sent to sentChan
@@ -112,12 +112,12 @@ func main() {
 	expect := int(*count) * len(urls)
 	elapsed := endConnection.Sub(beginConnection)
 	ratio := int((float64)(expect) / elapsed.Seconds())
-	log.Printf("%d messages sent in %s (%d msg/s)", expect, elapsed, ratio)
+	logger.Printf("main()", "%d messages sent in %s (%d msg/s)", expect, elapsed, ratio)
 
 	if !*synack && *ack {
 		beginAck := time.Now()
 		// Wait for all the acknowledgements
-		debugf("Started senders, expect %v acknowledgements", expect)
+		debugf("main()", "Started senders, expect %v acknowledgements", expect)
 		for i := 0; i < expect; i++ {
 			out := <-sentChan // Outcome of async sends.
 			if out.Error != nil {
@@ -125,15 +125,15 @@ func main() {
 			} else if out.Status != electron.Accepted {
 				log.Fatalf("acknowledgement[%v] unexpected status: %v", i, out.Status)
 			} else {
-				debugf("acknowledgement[%v] %v (%v)", i, out.Value, out.Status)
+				debugf("main()", "acknowledgement[%v] %v (%v)", i, out.Value, out.Status)
 			}
 		}
 		close(sentChan)
-		fmt.Printf("Received all %v acknowledgements", expect)
+		log.Printf("Received all %v acknowledgements", expect)
 		endAck := time.Now()
 		elapsed := endAck.Sub(beginAck)
 		ratio := int((float64)(expect) / elapsed.Seconds())
-		log.Printf("%d ack received in %s (%d msg/s)", expect, elapsed, ratio)
+		debugf("main()", "%d ack received in %s (%d msg/s)", expect, elapsed, ratio)
 	}
 
 	wait.Wait() // Wait for all goroutines to finish.

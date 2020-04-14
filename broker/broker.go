@@ -1,8 +1,7 @@
 package main
 
 import (
-	"fmt"
-	"log"
+	"jf/AMQP/logger"
 	"net"
 	"time"
 
@@ -32,7 +31,7 @@ func (b *broker) run() error {
 		return err
 	}
 	defer listener.Close()
-	fmt.Printf("Listening on %v\n", listener.Addr())
+	logger.Printf("broker.run()", "Listening on %v\n", listener.Addr())
 
 	// go b.acknowledgements() // Handles acknowledgements for all connections.
 
@@ -40,12 +39,12 @@ func (b *broker) run() error {
 	for {
 		c, err := b.container.Accept(listener)
 		if err != nil {
-			debugf("Accept error: %v", err)
+			debugf("broker.run()", "Accept error: %v", err)
 			continue
 		}
 		cc := &connection{b, c}
 		go cc.run() // Handle the connection
-		debugf("Accepted %v", c)
+		debugf("broker.run()", "Accepted %v", c)
 	}
 }
 
@@ -59,7 +58,7 @@ type connection struct {
 // and start goroutines to service them.
 func (c *connection) run() {
 	for in := range c.connection.Incoming() {
-		debugf("incoming %v", in)
+		debugf("connection.run()", "incoming %v", in)
 
 		switch in := in.(type) {
 		case *electron.IncomingConnection, *electron.IncomingSession:
@@ -79,15 +78,13 @@ func (c *connection) run() {
 			in.Reject(amqp.Errorf("AMQPserver", "unexpected endpoint %s", in))
 		}
 	}
-	debugf("incoming closed: %v", c.connection)
+	debugf("connection.run()", "connection closed: %v", c.connection)
 }
 
 // receiver receives messages and pushes to a queue.
 func (c *connection) receiver(receiver electron.Receiver) {
-	debugf("receiver to queue %s", receiver.Target())
-
+	debugf("connection.receiver()", "push to queue %s", receiver.Target())
 	beginConnection := time.Now()
-
 	q := c.broker.queues.Get(receiver.Target())
 	var count int = 0
 	for {
@@ -98,47 +95,52 @@ func (c *connection) receiver(receiver electron.Receiver) {
 				rm.Accept()
 			}
 		} else {
-			debugf("%v error: %v", receiver, err)
+			debugf("connection.receiver()", "%v error: %v", receiver, err)
 			break
 		}
 		count++
 	}
 	endConnection := time.Now()
-
 	elapsed := endConnection.Sub(beginConnection)
 	ratio := int((float64)(count) / elapsed.Seconds())
-	log.Printf("%d messages received in %s (%d msg/s)", count, elapsed, ratio)
+	logger.Printf("connection.receiver()", "%d messages received in %s (%d msg/s)", count, elapsed, ratio)
 }
 
 // sender pops messages from a queue and sends them.
 func (c *connection) sender(sender electron.Sender) {
-	debugf("sender from queue %s", sender.Source())
+	debugf("connection.sender()", "sender from queue %s", sender.Source())
+	beginConnection := time.Now()
 	q := c.broker.queues.Get(sender.Source())
+	var count int = 0
 	for {
 		if sender.Error() != nil {
-			debugf("%v closed: %v", sender, sender.Error())
-			return
+			debugf("connection.sender()", "%s closed: %v", sender, sender.Error())
+			break
 		}
 		if m := q.Next(); m != nil {
-			debugf("%v: sent %v", sender, m.Body())
+			count++
+			debugf("connection.sender()", "%v: sent %v", sender, m.Body())
 			// TODO sm := sentMessage{m, q}
 			// c.broker.sent <- sm                    // Record sent message
 			// sender.SendAsync(m, c.broker.acks, sm) // Receive outcome on c.broker.acks with Value sm
 			//TODO: timeout paramétrable
 			outcome := sender.SendSyncTimeout(m, 10*time.Second)
 			if outcome.Status != electron.Accepted { // Error, release or rejection
-				debugf("message send error :status %v, error %v", outcome.Status, outcome.Error)
-				break
+				debugf("connection.sender()", "send error: status %v, error %v", outcome.Status, outcome.Error)
 			} else {
-				debugf("message acknowledged by receiver")
+				debugf("connection.sender()", "message acknowledged by receiver")
 			}
 		}
-		select {
-		case <-sender.Done(): // break if sender is closed
-			break
-		default:
-		}
+		// select {
+		// case <-sender.Done(): // break if sender is closed
+		// 	break
+		// default:
+		// }
 	}
+	endConnection := time.Now()
+	elapsed := endConnection.Sub(beginConnection)
+	ratio := int((float64)(count) / elapsed.Seconds())
+	logger.Printf("connection.sender()", "%d messages sent in %s (%d msg/s)", count, elapsed, ratio)
 }
 
 // acknowledgements keeps track of sent messages and receives outcomes.

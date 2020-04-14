@@ -23,7 +23,6 @@ import (
 	"flag"
 	"fmt"
 	"jf/AMQP/logger"
-	"log"
 	"os"
 	"strings"
 	"sync"
@@ -45,7 +44,7 @@ URLs are of the form "amqp://<host>:<port>/<amqp-address>"
 var count = flag.Int("count", 1, "Stop after receiving this many messages in total")
 var prefetch = flag.Int("prefetch", 0, "enable a pre-fetch window for flow control")
 var debug = flag.Bool("debug", false, "Print detailed debug output")
-var debugf = func(format string, data ...interface{}) {} // Default no debugging output
+var debugf logger.DebugFunction // Default no debugging output
 
 func main() {
 	flag.Usage = usage
@@ -56,7 +55,7 @@ func main() {
 	}
 	urls := flag.Args() // Non-flag arguments are URLs to receive from
 	if len(urls) == 0 {
-		log.Println("No URL provided")
+		logger.Printf("main()", "No URL provided")
 		usage()
 		os.Exit(1)
 	}
@@ -73,7 +72,7 @@ func main() {
 	// Start a goroutine to for each URL to receive messages and send them to the messages channel.
 	// main() receives and prints them.
 	for _, urlStr := range urls {
-		debugf("Connecting to %s", urlStr)
+		debugf("main()", "Connecting to %s", urlStr)
 		go func(urlStr string) { // Start the goroutine
 			defer wait.Done() // Notify main() when this goroutine is done.
 			beginConnection := time.Now()
@@ -92,41 +91,47 @@ func main() {
 			r, err := c.Receiver(opts...)
 			fatalIf(err)
 			// Loop receiving messages and sending them to the main() goroutine
-			for {
+
+			for i := 0; ; i++ {
 				if rm, err := r.Receive(); err == nil {
-					debugf("accept %s", rm.Message.Body())
-					rm.Accept()
+					if i < 3 {
+						debugf(urlStr, "accept %s", rm.Message.Body())
+						rm.Accept()
+					} else {
+						debugf(urlStr, "reject %s", rm.Message.Body())
+						rm.Reject()
+					}
 					messages <- rm.Message
 				} else if err == electron.Closed {
-					debugf("Connection closed")
-					return
+					debugf(urlStr, "Connection closed")
+					break
 				} else {
-					log.Fatalf("receive error %v: %v", urlStr, err)
+					logger.Fatalf(urlStr, "receive error %v: %v", urlStr, err)
 				}
 			}
 			endConnection := time.Now()
 			expect := int(*count) * len(urls)
 			elapsed := endConnection.Sub(beginConnection)
 			ratio := int((float64)(expect) / elapsed.Seconds())
-			log.Printf("%d messages sent in %s (%d msg/s)", expect, elapsed, ratio)
+			logger.Printf(urlStr, "%d messages received in %s (%d msg/s)", expect, elapsed, ratio)
 		}(urlStr)
 	}
 
 	// All goroutines are started, we are receiving messages.
-	log.Printf("Listening on %d connections", len(urls))
+	logger.Printf("main()", "Listening on %d connections", len(urls))
 
 	// print each message until the count is exceeded.
 	for i := 0; i < *count; i++ {
 		m := <-messages
-		debugf("%v", m.Body())
+		debugf("main()", "%v", m.Body())
 	}
-	log.Printf("Received %d messages", *count)
+	logger.Printf("main()", "Received %d messages", *count)
 
 	// Close all connections, this will interrupt goroutines blocked in Receiver.Receive()
 	// with electron.Closed.
 	for i := 0; i < len(urls); i++ {
 		c := <-connections
-		debugf("close %s", c)
+		debugf("main()", "close %s", c)
 		c.Close(nil)
 	}
 	wait.Wait() // Wait for all goroutines to finish.
@@ -134,6 +139,6 @@ func main() {
 
 func fatalIf(err error) {
 	if err != nil {
-		log.Fatal(err)
+		logger.Fatalf("main()", "error: %s", err)
 	}
 }
