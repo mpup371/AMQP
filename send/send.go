@@ -22,14 +22,15 @@ package main
 import (
 	"flag"
 	"fmt"
+	"jf/AMQP/logger"
 	"log"
 	"os"
 	"strings"
 	"sync"
 	"time"
 
-	"github.com/apache/qpid-proton/go/pkg/amqp"
-	"github.com/apache/qpid-proton/go/pkg/electron"
+	"qpid.apache.org/amqp"
+	"qpid.apache.org/electron"
 )
 
 // Usage and command-line flags
@@ -52,7 +53,7 @@ func main() {
 	flag.Parse()
 
 	if *debug {
-		debugf = func(format string, data ...interface{}) { log.Printf(format, data...) }
+		debugf = logger.Debugf
 	}
 
 	urls := flag.Args() // Non-flag arguments are URLs to receive from
@@ -72,7 +73,7 @@ func main() {
 	beginConnection := time.Now()
 	// Start a goroutine for each URL to send messages.
 	for _, urlStr := range urls {
-		debugf("Connecting to %v\n", urlStr)
+		debugf("Connecting to %", urlStr)
 		go func(urlStr string) {
 			defer wait.Done() // Notify main() when this goroutine is done.
 			url, err := amqp.ParseURL(urlStr)
@@ -96,7 +97,7 @@ func main() {
 						} else if out.Status != electron.Accepted {
 							log.Fatalf("acknowledgement[%v] unexpected status: %v", i, out.Status)
 						} else {
-							debugf("synack[%v]  %v (%v)\n", i, out.Value, out.Status)
+							debugf("synack[%v]  %v (%v)", i, out.Value, out.Status)
 						}
 					} else {
 						s.SendAsync(m, sentChan, body) // Outcome will be sent to sentChan
@@ -116,7 +117,7 @@ func main() {
 	if !*synack && *ack {
 		beginAck := time.Now()
 		// Wait for all the acknowledgements
-		debugf("Started senders, expect %v acknowledgements\n", expect)
+		debugf("Started senders, expect %v acknowledgements", expect)
 		for i := 0; i < expect; i++ {
 			out := <-sentChan // Outcome of async sends.
 			if out.Error != nil {
@@ -124,11 +125,11 @@ func main() {
 			} else if out.Status != electron.Accepted {
 				log.Fatalf("acknowledgement[%v] unexpected status: %v", i, out.Status)
 			} else {
-				debugf("acknowledgement[%v] %v (%v)\n", i, out.Value, out.Status)
+				debugf("acknowledgement[%v] %v (%v)", i, out.Value, out.Status)
 			}
 		}
 		close(sentChan)
-		fmt.Printf("Received all %v acknowledgements\n", expect)
+		fmt.Printf("Received all %v acknowledgements", expect)
 		endAck := time.Now()
 		elapsed := endAck.Sub(beginAck)
 		ratio := int((float64)(expect) / elapsed.Seconds())

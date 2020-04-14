@@ -29,10 +29,11 @@ package main
 import (
 	"flag"
 	"fmt"
+	"jf/AMQP/logger"
 	"log"
 	"os"
 
-	"github.com/apache/qpid-proton/go/pkg/electron"
+	"qpid.apache.org/electron"
 )
 
 // Usage and command-line flags
@@ -57,7 +58,7 @@ func main() {
 	flag.Parse()
 
 	if *debug {
-		debugf = func(format string, data ...interface{}) { log.Printf(format, data...) }
+		debugf = logger.Debugf
 	}
 	b := &broker{
 		queues:    makeQueues(*qsize),

@@ -6,8 +6,8 @@ import (
 	"net"
 	"time"
 
-	"github.com/apache/qpid-proton/go/pkg/amqp"
-	"github.com/apache/qpid-proton/go/pkg/electron"
+	"qpid.apache.org/amqp"
+	"qpid.apache.org/electron"
 )
 
 // State for the broker

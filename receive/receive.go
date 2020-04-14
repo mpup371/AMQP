@@ -22,14 +22,15 @@ package main
 import (
 	"flag"
 	"fmt"
+	"jf/AMQP/logger"
 	"log"
 	"os"
 	"strings"
 	"sync"
 	"time"
 
-	"github.com/apache/qpid-proton/go/pkg/amqp"
-	"github.com/apache/qpid-proton/go/pkg/electron"
+	"qpid.apache.org/amqp"
+	"qpid.apache.org/electron"
 )
 
 // Usage and command-line flags
@@ -51,7 +52,7 @@ func main() {
 	flag.Parse()
 
 	if *debug {
-		debugf = func(format string, data ...interface{}) { log.Printf(format, data...) }
+		debugf = logger.Debugf
 	}
 	urls := flag.Args() // Non-flag arguments are URLs to receive from
 	if len(urls) == 0 {
@@ -72,7 +73,7 @@ func main() {
 	// Start a goroutine to for each URL to receive messages and send them to the messages channel.
 	// main() receives and prints them.
 	for _, urlStr := range urls {
-		debugf("Connecting to %s\n", urlStr)
+		debugf("Connecting to %s", urlStr)
 		go func(urlStr string) { // Start the goroutine
 			defer wait.Done() // Notify main() when this goroutine is done.
 			beginConnection := time.Now()
@@ -93,6 +94,7 @@ func main() {
 			// Loop receiving messages and sending them to the main() goroutine
 			for {
 				if rm, err := r.Receive(); err == nil {
+					debugf("accept %s", rm.Message.Body())
 					rm.Accept()
 					messages <- rm.Message
 				} else if err == electron.Closed {
@@ -111,14 +113,14 @@ func main() {
 	}
 
 	// All goroutines are started, we are receiving messages.
-	fmt.Printf("Listening on %d connections\n", len(urls))
+	log.Printf("Listening on %d connections", len(urls))
 
 	// print each message until the count is exceeded.
 	for i := 0; i < *count; i++ {
 		m := <-messages
-		debugf("%v\n", m.Body())
+		debugf("%v", m.Body())
 	}
-	fmt.Printf("Received %d messages\n", *count)
+	log.Printf("Received %d messages", *count)
 
 	// Close all connections, this will interrupt goroutines blocked in Receiver.Receive()
 	// with electron.Closed.

@@ -1,5 +1,0 @@
-github.com/apache/qpid-proton v0.0.0-20200330064750-e5e1b7d5b47f h1:lCI5dK7iZthkAgWlxsNfidafhdXGtmX4bJy4DYcz4lQ=
-github.com/apache/qpid-proton v0.0.0-20200330064750-e5e1b7d5b47f/go.mod h1:KzZ93AoKqo5DrIyNm7lQ8geWIJWngn+vLwKSpRtJ/cc=
-github.com/foize/go.fifo v0.0.0-20130327144150-3a04cfeec121 h1:4tcVl93sFQN4n6PYiJ6m11uypFWCpyybUpWV+HA7Fqg=
-github.com/foize/go.fifo v0.0.0-20130327144150-3a04cfeec121/go.mod h1:FnCzb+rCPKo7SBHmZYaSca9ymfnSHqh1E8jZz460/t0=
-qpid.apache.org v0.0.0-20200330064750-e5e1b7d5b47f h1:Ce/vaE54G3cpsZSnzmItPyjRykUymEPCUdY8nHQWJl0=
