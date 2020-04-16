@@ -57,8 +57,8 @@ func main() {
 	b := &broker{
 		queues:    makeQueues(*qsize),
 		container: electron.NewContainer(fmt.Sprintf("broker[%v]", os.Getpid())),
-		// acks:      make(chan electron.Outcome),
-		sent: make(chan sentMessage),
+		acks:      make(chan electron.Outcome),
+		sent:      make(chan sentMessage),
 	}
 
 	if err := b.run(); err != nil {

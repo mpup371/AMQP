@@ -167,7 +167,6 @@ func (c *connection) sender(sender electron.Sender) {
 			return
 		}
 		select {
-
 		case m := <-q:
 			debugf("%v: sent %v", sender, m.Body())
 			sm := sentMessage{m, q}

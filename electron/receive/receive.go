@@ -89,7 +89,6 @@ func main() {
 				}
 				break
 			}
-
 		} else if err == electron.Closed {
 			logger.Debugf(urlStr, "Connection closed")
 			return
@@ -97,11 +96,9 @@ func main() {
 			logger.Fatalf(urlStr, "receive error %v: %v", urlStr, err)
 		}
 	}
-	time.Sleep(10 * time.Second)
 	logger.Debugf(urlStr, "Closing receiver...")
 	r.Close(nil)
 	logger.Debugf(urlStr, "... closed")
-	time.Sleep(10 * time.Second)
 	logger.Debugf(urlStr, "Closing connexion...")
 	c.Close(nil)
 	logger.Debugf(urlStr, "... closed")

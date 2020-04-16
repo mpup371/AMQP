@@ -54,22 +54,18 @@ func main() {
 		usage()
 		os.Exit(1)
 	}
-	urlStr := flag.Args()[0] // Non-flag arguments are URLs to receive from
-
+	urlStr := flag.Args()[0]                // Non-flag arguments are URLs to receive from
 	sentChan := make(chan electron.Outcome) // Channel to receive acknowledgements.
-
 	container := electron.NewContainer(fmt.Sprintf("send[%v]", os.Getpid()))
-	connections := make(chan electron.Connection, len(urlStr)) // Connections to close on exit
 	// Start a goroutine for each URL to send messages.
 	logger.Debugf("main()", "Connecting to %s", urlStr)
 	beginConnection := time.Now()
 	url, err := amqp.ParseURL(urlStr)
 	fatalIf(err)
-	c, err := container.Dial("tcp", url.Host) // NOTE: Dial takes just the Host part of the URL
+	connection, err := container.Dial("tcp", url.Host) // NOTE: Dial takes just the Host part of the URL
 	fatalIf(err)
-	connections <- c // Save connection so we can Close() when main() ends
 	addr := strings.TrimPrefix(url.Path, "/")
-	s, err := c.Sender(electron.Target(addr), electron.Capacity(*count))
+	sender, err := connection.Sender(electron.Target(addr), electron.Capacity(*count))
 	fatalIf(err)
 	// Loop sending messages.
 	for i := 0; i < *count; i++ {
@@ -79,7 +75,7 @@ func main() {
 		if *ack {
 			if *synack {
 				logger.Debugf(urlStr, "SendSync(%s)", body)
-				out := s.SendSync(m)
+				out := sender.SendSync(m)
 				if out.Error != nil {
 					logger.Fatalf(urlStr, "synack[%v] %v error: %v", i, out.Value, out.Error)
 				} else if out.Status != electron.Accepted {
@@ -89,18 +85,18 @@ func main() {
 				}
 			} else {
 				logger.Debugf(urlStr, "SendAsync(%s)", body)
-				s.SendAsync(m, sentChan, body) // Outcome will be sent to sentChan
+				sender.SendAsync(m, sentChan, body) // Outcome will be sent to sentChan
 			}
 		} else {
 			logger.Debugf(urlStr, "SendForget(%s)", body)
-			s.SendForget(m)
+			sender.SendForget(m)
 		}
 	}
 	endConnection := time.Now()
 	elapsed := endConnection.Sub(beginConnection)
 	ratio := int((float64)(*count) / elapsed.Seconds())
 	logger.Printf(urlStr, "%d messages sent in %s (%d msg/s)", *count, elapsed, ratio)
-
+	
 	if !*synack && *ack {
 		beginAck := time.Now()
 		// Wait for all the acknowledgements
@@ -109,29 +105,26 @@ func main() {
 			out := <-sentChan // Outcome of async sends.
 			if out.Error != nil {
 				log.Fatalf("async ack[%v] %v error: %v", i, out.Value, out.Error)
-			} else if out.Status != electron.Accepted {
-				log.Fatalf("async ack[%v] unexpected status: %v", i, out.Status)
-			} else {
-				logger.Debugf("main()", "async ack[%v] %v (%v)", i, out.Value, out.Status)
+				} else if out.Status != electron.Accepted {
+					log.Fatalf("async ack[%v] unexpected status: %v", i, out.Status)
+					} else {
+						logger.Debugf("main()", "async ack[%v] %v (%v)", i, out.Value, out.Status)
+					}
+				}
+				close(sentChan)
+				endAck := time.Now()
+				elapsed := endAck.Sub(beginAck)
+				ratio := int((float64)(*count) / elapsed.Seconds())
+				logger.Debugf("main()", "%d ack received in %s (%d msg/s)", *count, elapsed, ratio)
 			}
 		}
-		close(sentChan)
-		endAck := time.Now()
-		elapsed := endAck.Sub(beginAck)
-		ratio := int((float64)(*count) / elapsed.Seconds())
-		logger.Debugf("main()", "%d ack received in %s (%d msg/s)", *count, elapsed, ratio)
 	}
-
-	close(connections)
-	for c := range connections { // Close all connections
-		if c != nil {
-			c.Close(nil)
-		}
-	}
+	
+	sender.Close(nil)
+	connection.Close(nil)
 }
+		func fatalIf(err error) {
+			if err != nil {
+				log.Fatal(err)
+			}
 
-func fatalIf(err error) {
-	if err != nil {
-		log.Fatal(err)
-	}
-}

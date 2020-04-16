@@ -123,21 +123,21 @@ Loop:
 		if m := q.Next(); m != nil {
 			logger.Debugf(id, "sending %v ...", m.Body())
 			// sender.SendForget(m)
-			// sm := sentMessage{&m}
-			// sender.SendAsync(m, c.broker.acks, sm) // Receive outcome on c.broker.acks with Value sm
+			sm := sentMessage{&m}
+			sender.SendAsync(m, c.broker.acks, sm) // Receive outcome on c.broker.acks with Value sm
 			// c.broker.sent <- sm                    // Record sent message
 			//TODO: timeout paramétrable
-			outcome := sender.SendSyncTimeout(m, 5*time.Second)
-			logger.Debugf(id, "status %v, error %v", outcome.Status, outcome.Error)
-			switch outcome.Status { // Error, release or rejection
-			case electron.Accepted:
-			case electron.Released:
-				break Loop
-			default:
-				logger.Debugf(id, "closing sender")
-				sender.Close(nil)
-				break Loop
-			}
+			// outcome := sender.SendSyncTimeout(m, 5*time.Second)
+			// logger.Debugf(id, "status %v, error %v", outcome.Status, outcome.Error)
+			// switch outcome.Status { // Error, release or rejection
+			// case electron.Accepted:
+			// case electron.Released:
+			// 	break Loop
+			// default:
+			// 	logger.Debugf(id, "closing sender")
+			// 	sender.Close(nil)
+			// 	break Loop
+			// }
 			logger.Debugf(id, "... sent %v", m.Body())
 			count++
 		} else {
@@ -177,6 +177,9 @@ func (b *broker) acknowledgements() {
 				// sm.q.Add(sm.m) // Put the message back on the queue.
 				logger.Debugf("broker.acknowledgements()", "message %v put back, status %v, error %v", (*sm.m).Body(), outcome.Status, outcome.Error)
 			}
+			// default:
+			// 	logger.Debugf("broker.acknowledgements()", "sleep")
+			// 	time.Sleep(1 * time.Second)
 		}
 	}
 }

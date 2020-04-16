@@ -11,7 +11,6 @@ func init() {
 }
 
 func debugf(id string, format string, data ...interface{}) {
-	log.Printf(format, data...)
 }
 
 func printf(id string, format string, data ...interface{}) {
