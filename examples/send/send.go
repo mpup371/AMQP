@@ -87,7 +87,7 @@ func main() {
 				m.Marshal(body)
 				s.SendAsync(m, sentChan, body) // Outcome will be sent to sentChan
 			}
-			s.Close(nil) // ***** mistake here *****/
+			// s.Close(nil) // ***** mistake here *****/
 		}(urlStr)
 	}
 
