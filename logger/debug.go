@@ -13,20 +13,21 @@ const (
 	debugColor   = "\033[0;36m"
 )
 
-// type DebugFunction func(id string, format string, data ...interface{})
+func init() {
+	Debugf = debugf
+	Printf = printf
+	Fatalf = fatalf
+}
 
-// func DebugVoid(id string, format string, data ...interface{}) {
-// }
-
-//TODO: utiliser tag  à la compil
-func Debugf(id string, format string, data ...interface{}) {
+//TODO: string builder
+func debugf(id string, format string, data ...interface{}) {
 	log.Printf(noticeColor+id+" "+debugColor+format+resetColor, data...)
 }
 
-func Printf(id string, format string, data ...interface{}) {
+func printf(id string, format string, data ...interface{}) {
 	log.Printf(noticeColor+id+" "+resetColor+format, data...)
 }
 
-func Fatalf(id string, format string, data ...interface{}) {
+func fatalf(id string, format string, data ...interface{}) {
 	log.Fatalf(errorColor+id+" "+debugColor+format+resetColor, data...)
 }

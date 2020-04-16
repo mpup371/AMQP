@@ -1,17 +1,5 @@
-// +build !debug
-
 package logger
 
-import "log"
+type DebugFunction func(id string, format string, data ...interface{})
 
-func Debugf(id string, format string, data ...interface{}) {
-	log.Printf(format, data...)
-}
-
-func Printf(id string, format string, data ...interface{}) {
-	log.Printf(format, data...)
-}
-
-func Fatalf(id string, format string, data ...interface{}) {
-	log.Fatalf(format, data...)
-}
+var Debugf, Printf, Fatalf DebugFunction

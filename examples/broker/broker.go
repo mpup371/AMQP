@@ -140,7 +140,7 @@ func (c *connection) run() {
 			in.Accept() // Accept sessions unconditionally
 		}
 	}
-	debugf("incoming closed: %v", c.connection)
+	debugf("connection closed: %v", c.connection)
 }
 
 // receiver receives messages and pushes to a queue.
@@ -197,10 +197,12 @@ func (b *broker) acknowledgements() {
 			}
 		case outcome := <-b.acks: // The message outcome is available
 			sm := outcome.Value.(sentMessage)
+			debugf("outcome %v , status %v, error %v", sm.m.Body(), outcome.Status, outcome.Error)
+
 			delete(sentMap, sm)
 			if outcome.Status != electron.Accepted { // Error, release or rejection
 				sm.q.PutBack(sm.m) // Put the message back on the queue.
-				debugf("message %v put back, status %v, error %v", sm.m.Body(), outcome.Status, outcome.Error)
+				debugf("message put back")
 			}
 		}
 	}

@@ -114,38 +114,43 @@ func (c *connection) sender(sender electron.Sender) {
 	beginConnection := time.Now()
 	q := c.broker.queues.Get(sender.Source())
 	var count int = 0
+Loop:
 	for {
 		if sender.Error() != nil {
 			logger.Debugf(id, "%s closed: %v", sender, sender.Error())
 			break
 		}
 		if m := q.Next(); m != nil {
-			count++
 			logger.Debugf(id, "sending %v ...", m.Body())
 			// sender.SendForget(m)
-			sm := sentMessage{&m}
-			sender.SendAsync(m, c.broker.acks, sm) // Receive outcome on c.broker.acks with Value sm
+			// sm := sentMessage{&m}
+			// sender.SendAsync(m, c.broker.acks, sm) // Receive outcome on c.broker.acks with Value sm
 			// c.broker.sent <- sm                    // Record sent message
-			logger.Debugf(id, "... sent %v", m.Body())
 			//TODO: timeout paramétrable
-			// outcome := sender.SendSyncTimeout(m, 1*time.Second)
-			// if outcome.Status != electron.Accepted { // Error, release or rejection
-			// 	logger.Debugf(id, "send error: status %v, error %v", outcome.Status, outcome.Error)
-			// } else {
-			// 	logger.Debugf(id, "message acknowledged by receiver")
-			// }
+			outcome := sender.SendSyncTimeout(m, 5*time.Second)
+			logger.Debugf(id, "status %v, error %v", outcome.Status, outcome.Error)
+			switch outcome.Status { // Error, release or rejection
+			case electron.Accepted:
+			case electron.Released:
+				break Loop
+			default:
+				logger.Debugf(id, "closing sender")
+				sender.Close(nil)
+				break Loop
+			}
+			logger.Debugf(id, "... sent %v", m.Body())
+			count++
+		} else {
+			logger.Debugf(id, "closing sender")
+			sender.Close(nil)
+			break Loop
 		}
-
-		// select {
-		// case <-sender.Done(): // break if sender is closed
-		// 	break
-		// default:
-		// }
 	}
 	endConnection := time.Now()
 	elapsed := endConnection.Sub(beginConnection)
 	ratio := int((float64)(count) / elapsed.Seconds())
 	logger.Printf(id, "%d messages sent in %s (%d msg/s)", count, elapsed, ratio)
+
 }
 
 // acknowledgements keeps track of sent messages and receives outcomes.

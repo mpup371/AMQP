@@ -5,11 +5,34 @@
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "Launch",
+            "name": "Attach to Process",
+            "type": "go",
+            "request": "attach",
+            "mode": "local",
+            "processId": 6201
+        },
+        {
+            "name": "Launch receive",
             "type": "go",
             "request": "launch",
-            "mode": "auto",
-            "program": "${cwd}/send/send.go",
+            "mode": "debug",
+            "program": "${workspaceFolder}/receive",
+            "args": ["-count=1", "amqp://localhost:5672/topic"]
+        },
+    
+    {
+        "name": "Launch broker",
+        "type": "go",
+        "request": "launch",
+        "mode": "debug",
+        "program": "${workspaceFolder}/broker"
+    },
+        {
+            "name": "Launch send",
+            "type": "go",
+            "request": "launch",
+            "mode": "debug",
+            "program": "${workspaceFolder}/send",
             "env": {},
             "args": ["-count=10","amqp://localhost:5672/topic"]
         }
