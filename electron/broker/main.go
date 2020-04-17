@@ -47,7 +47,6 @@ Queues are created automatically for sender or receiver addresses.
 
 var addr = flag.String("addr", ":amqp", "Network address to listen on, in the form \"host:port\"")
 var credit = flag.Int("credit", 100, "Receiver credit window")
-var qsize = flag.Int("qsize", 1000, "Max queue size")
 var ack = flag.Bool("ack", true, "Send acknowledgements")
 
 func main() {
@@ -55,7 +54,7 @@ func main() {
 	flag.Parse()
 
 	b := &broker{
-		queues:    makeQueues(*qsize),
+		queues:    makeQueues(),
 		container: electron.NewContainer(fmt.Sprintf("broker[%v]", os.Getpid())),
 		acks:      make(chan electron.Outcome),
 		sent:      make(chan sentMessage),

@@ -1,3 +1,4 @@
+/*trace AMQP: export PN_TRACE_FRM=1 */
 package main
 
 import (
@@ -21,7 +22,7 @@ type broker struct {
 // Record of a sent message and the queue it came from.
 // If a message is rejected or not acknowledged due to a failure, we will put it back on the queue.
 type sentMessage struct {
-	m *amqp.Message
+	m amqp.Message
 }
 
 // run listens for incoming net.Conn connections and starts an electron.Connection for each one.
@@ -90,7 +91,7 @@ func (c *connection) receiver(receiver electron.Receiver) {
 	var count int = 0
 	for {
 		if rm, err := receiver.Receive(); err == nil {
-			// logger.Debugf("%v: received %v", receiver, rm.Message.Body())
+			logger.Debugf(id, "%v: received %v", receiver, rm.Message.Body())
 			q.Add(rm.Message)
 			if *ack {
 				rm.Accept()
@@ -104,7 +105,7 @@ func (c *connection) receiver(receiver electron.Receiver) {
 	endConnection := time.Now()
 	elapsed := endConnection.Sub(beginConnection)
 	ratio := int((float64)(count) / elapsed.Seconds())
-	logger.Printf("id", "%d messages received in %s (%d msg/s)", count, elapsed, ratio)
+	logger.Printf(id, "%d messages received in %s (%d msg/s)", count, elapsed, ratio)
 }
 
 // sender pops messages from a queue and sends them.
@@ -120,24 +121,22 @@ Loop:
 			logger.Debugf(id, "%s closed: %v", sender, sender.Error())
 			break
 		}
-		if m := q.Next(); m != nil {
+		if m := q.Peek(); m != nil {
 			logger.Debugf(id, "sending %v ...", m.Body())
 			// sender.SendForget(m)
-			sm := sentMessage{&m}
-			sender.SendAsync(m, c.broker.acks, sm) // Receive outcome on c.broker.acks with Value sm
+			// sm := sentMessage{m}
+			// sender.SendAsync(m, c.broker.acks, sm) // Receive outcome on c.broker.acks with Value sm
 			// c.broker.sent <- sm                    // Record sent message
 			//TODO: timeout paramétrable
-			// outcome := sender.SendSyncTimeout(m, 5*time.Second)
-			// logger.Debugf(id, "status %v, error %v", outcome.Status, outcome.Error)
-			// switch outcome.Status { // Error, release or rejection
-			// case electron.Accepted:
-			// case electron.Released:
-			// 	break Loop
-			// default:
-			// 	logger.Debugf(id, "closing sender")
-			// 	sender.Close(nil)
-			// 	break Loop
-			// }
+			outcome := sender.SendSyncTimeout(m, 5*time.Second)
+			logger.Debugf(id, "status %v, error %v", outcome.Status, outcome.Error)
+			switch outcome.Status { // Error, release or rejection
+			case electron.Accepted:
+				q.Pop()
+			default:
+				logger.Printf(id, "status %v, error %v", outcome.Status, outcome.Error)
+				break Loop
+			}
 			logger.Debugf(id, "... sent %v", m.Body())
 			count++
 		} else {
@@ -171,11 +170,11 @@ func (b *broker) acknowledgements() {
 		// 	}
 		case outcome := <-b.acks: // The message outcome is available
 			sm := outcome.Value.(sentMessage)
-			logger.Debugf("broker.acknowledgements()", "outcome: %v", sm)
+			logger.Debugf("broker.acknowledgements()", "%s", sm.m.Body())
 			// delete(sentMap, sm)
 			if outcome.Status != electron.Accepted { // Error, release or rejection
 				// sm.q.Add(sm.m) // Put the message back on the queue.
-				logger.Debugf("broker.acknowledgements()", "message %v put back, status %v, error %v", (*sm.m).Body(), outcome.Status, outcome.Error)
+				logger.Debugf("broker.acknowledgements()", "message %v put back, status %v, error %v", sm.m.Body(), outcome.Status, outcome.Error)
 			}
 			// default:
 			// 	logger.Debugf("broker.acknowledgements()", "sleep")

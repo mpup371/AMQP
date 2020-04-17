@@ -65,7 +65,7 @@ func main() {
 	c, err := container.Dial("tcp", url.Host) // NOTE: Dial takes just the Host part of the URL
 	fatalIf(err)
 	addr := strings.TrimPrefix(url.Path, "/")
-	opts := []electron.LinkOption{electron.Source(addr)}
+	opts := []electron.LinkOption{electron.Source(addr), electron.LinkName("receiver-" + addr)}
 	if *prefetch > 0 { // Use a pre-fetch window
 		opts = append(opts, electron.Capacity(*prefetch), electron.Prefetch(true))
 	} else { // Grant credit for all expected messages at once
@@ -75,30 +75,23 @@ func main() {
 	fatalIf(err)
 	// Loop receiving messages and sending them to the main() goroutine
 
-	for i := 0; ; i++ {
+	for i := 0; i < *count; i++ {
 		if rm, err := r.Receive(); err == nil {
-			if i < *count {
-				logger.Debugf(urlStr, "accept %s", rm.Message.Body())
-				if err := rm.Accept(); err != nil {
-					logger.Printf(urlStr, "Error on accept: %s", err)
-				}
-			} else {
-				logger.Debugf(urlStr, "release %s", rm.Message.Body())
-				if err := rm.Release(); err != nil {
-					logger.Printf(urlStr, "Error on release: %s", err)
-				}
-				break
+			logger.Debugf(urlStr, "accept %s", rm.Message.Body())
+			if err := rm.Accept(); err != nil {
+				logger.Printf(urlStr, "Error on accept: %s", err)
 			}
-		} else if err == electron.Closed {
-			logger.Debugf(urlStr, "Connection closed")
-			return
 		} else {
 			logger.Fatalf(urlStr, "receive error %v: %v", urlStr, err)
+			break
 		}
 	}
-	logger.Debugf(urlStr, "Closing receiver...")
-	r.Close(nil)
-	logger.Debugf(urlStr, "... closed")
+
+	// time.Sleep(1 * time.Second)
+	// logger.Debugf(urlStr, "Closing receiver...")
+	// r.Close(nil) ne sert à rien
+	// logger.Debugf(urlStr, "... closed")
+	time.Sleep(1 * time.Second)
 	logger.Debugf(urlStr, "Closing connexion...")
 	c.Close(nil)
 	logger.Debugf(urlStr, "... closed")

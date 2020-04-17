@@ -13,8 +13,12 @@ func (q *queue) Add(m amqp.Message) {
 	(*fifo.Queue)(q).Add(m)
 }
 
-func (q *queue) Next() amqp.Message {
-	m := (*fifo.Queue)(q).Next()
+func (q *queue) Pop() {
+	(*fifo.Queue)(q).Next()
+}
+
+func (q *queue) Peek() amqp.Message {
+	m := (*fifo.Queue)(q).Peek()
 	if m == nil {
 		return nil
 	}
@@ -27,7 +31,7 @@ type queues struct {
 	lock sync.Mutex
 }
 
-func makeQueues(queueSize int) queues {
+func makeQueues() queues {
 	return queues{m: make(map[string]*queue)}
 }
 
