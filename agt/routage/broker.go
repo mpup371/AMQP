@@ -83,7 +83,7 @@ func (c *connection) run() {
 // receiver receives messages and pushes to a queue.
 func (c *connection) receiver(receiver electron.Receiver) {
 	id := fmt.Sprintf("connection.receiver(%s)", receiver.LinkName())
-	logger.Debugf(id, "Prefetch: %c, capacity: %v", receiver.Prefetch(), receiver.Capacity())
+	logger.Debugf(id, "Prefetch: %t, capacity: %v", receiver.Prefetch(), receiver.Capacity())
 	logger.Debugf(id, "push to queue %s", receiver.Target())
 	beginConnection := time.Now()
 	q := c.broker.queues.Get(receiver.Target())

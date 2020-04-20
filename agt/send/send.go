@@ -40,7 +40,7 @@ func main() {
 	}
 
 	urlStr := flag.Args()[0] // Non-flag arguments are URLs to receive from
-	container := electron.NewContainer(fmt.Sprintf("send[%v]", os.Getpid()))
+	container := electron.NewContainer(fmt.Sprintf("agtSend[%v]", os.Getpid()))
 	// Start a goroutine for each URL to send messages.
 	logger.Debugf("main()", "Connecting to %s", urlStr)
 	url, err := amqp.ParseURL(urlStr)
@@ -48,27 +48,38 @@ func main() {
 	connection, err := container.Dial("tcp", url.Host) // NOTE: Dial takes just the Host part of the URL
 	fatalIf(err)
 	topic := strings.TrimPrefix(url.Path, "/")
-	sender, err := connection.Sender(electron.Target(topic), electron.LinkName("send-"+topic))
+	sender, err := connection.Sender(electron.Target(topic))
 	fatalIf(err)
-
-	sendSynAck(urlStr, topic, sender)
-
-	// sender.Close(nil) ne pas fermer le sender sinon connection.Close reste bloqué
+	// sendForget(urlStr, sender)
+	sendSynAck(urlStr, sender)
+	logger.Debugf(urlStr, "Closing receiver...")
+	sender.Close(nil)
+	logger.Debugf(urlStr, "... closed")
+	logger.Debugf(urlStr, "Closing connexion...")
 	connection.Close(nil)
+	logger.Debugf(urlStr, "... closed")
 }
 
-func sendSynAck(urlStr string, topic string, sender electron.Sender) {
+func sendForget(id string, sender electron.Sender) {
 	m := amqp.NewMessage()
-	body := fmt.Sprintf("%v%v", topic)
+	body := fmt.Sprintf("message body")
 	m.Marshal(body)
-	logger.Debugf(urlStr, "sendSynAck(%s)", body)
+	logger.Debugf(id, "sendSynAck(%s)", body)
+	sender.SendForget(m)
+}
+
+func sendSynAck(id string, sender electron.Sender) {
+	m := amqp.NewMessage()
+	body := fmt.Sprintf("message body")
+	m.Marshal(body)
+	logger.Debugf(id, "sendSynAck(%s)", body)
 	out := sender.SendSync(m)
 	if out.Error != nil {
-		logger.Fatalf(urlStr, "%v error: %v", out.Value, out.Error)
+		logger.Fatalf(id, "%v error: %v", out.Value, out.Error)
 	} else if out.Status != electron.Accepted {
-		logger.Fatalf(urlStr, "unexpected status: %v", out.Status)
+		logger.Fatalf(id, "unexpected status: %v", out.Status)
 	} else {
-		logger.Debugf(urlStr, "%v (%v)", out.Value, out.Status)
+		logger.Debugf(id, "%v (%v)", out.Value, out.Status)
 	}
 }
 

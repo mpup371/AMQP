@@ -2,7 +2,9 @@
 
 package logger
 
-import "log"
+import (
+	"log"
+)
 
 const (
 	resetColor   = "\033[0m"
@@ -19,7 +21,6 @@ func init() {
 	Fatalf = fatalf
 }
 
-//TODO: string builder
 func debugf(id string, format string, data ...interface{}) {
 	log.Printf(noticeColor+id+" "+debugColor+format+resetColor, data...)
 }
