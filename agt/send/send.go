@@ -27,7 +27,7 @@ func main() {
 	urlStr := flag.Args()[0] // Non-flag arguments are URLs to receive from
 	container := electron.NewContainer(fmt.Sprintf("agtSend[%v]", os.Getpid()))
 	// Start a goroutine for each URL to send messages.
-	logger.Debugf("main()", "Connecting to %s", urlStr)
+	logger.Printf("main()", "Connecting to %s", urlStr)
 	url, err := amqp.ParseURL(urlStr)
 	fatalIf(err)
 	connection, err := container.Dial("tcp", url.Host) // NOTE: Dial takes just the Host part of the URL
@@ -60,11 +60,11 @@ func sendSynAck(id string, sender electron.Sender) {
 	logger.Debugf(id, "sendSynAck(%s)", body)
 	out := sender.SendSync(m)
 	if out.Error != nil {
-		logger.Fatalf(id, "%v error: %v", out.Value, out.Error)
+		logger.Printf(id, "%v error: %v", out.Value, out.Error)
 	} else if out.Status != electron.Accepted {
-		logger.Fatalf(id, "unexpected status: %v", out.Status)
+		logger.Printf(id, "unexpected status: %v", out.Status)
 	} else {
-		logger.Debugf(id, "%v (%v)", out.Value, out.Status)
+		logger.Printf(id, "%v (%v)", out.Value, out.Status)
 	}
 }
 

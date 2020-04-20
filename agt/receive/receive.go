@@ -40,7 +40,7 @@ func main() {
 
 	//TODO mode non bloquant ?
 	if rm, err := receiver.Receive(); err == nil {
-		logger.Debugf(urlStr, "accept %s", rm.Message.Body())
+		logger.Printf(urlStr, "accept %s", rm.Message.Body())
 		if err := rm.Accept(); err != nil {
 			logger.Printf(urlStr, "Error on accept: %s", err)
 		}

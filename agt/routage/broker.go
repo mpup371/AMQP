@@ -90,7 +90,7 @@ func (c *connection) receiver(receiver electron.Receiver) {
 		if rm, err := receiver.Receive(); err == nil {
 			logger.Debugf(id, "%v: received %v", receiver, rm.Message.Body())
 			count := q.Add(rm.Message)
-			logger.Printf(id, "%v: %d", receiver.Target(), count)
+			logger.Printf(id, "received on %v: size=%d", receiver.Target(), count)
 			rm.Accept()
 		} else {
 			logger.Debugf(id, "%v error: %v", receiver, err)
@@ -119,7 +119,7 @@ Loop:
 			case electron.Accepted:
 				count := q.Pop()
 				logger.Debugf(id, "... sent %v", m.Body())
-				logger.Printf("%v: %d", sender.Source(), count)
+				logger.Printf(id, "sent on %v: size=%d", sender.Source(), count)
 
 			default:
 				logger.Printf(id, "status %v, error %v", outcome.Status, outcome.Error)
