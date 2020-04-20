@@ -9,12 +9,12 @@ import (
 
 type queue fifo.Queue
 
-func (q *queue) Add(m amqp.Message) {
-	(*fifo.Queue)(q).Add(m)
+func (q *queue) Add(m amqp.Message) int {
+	return (*fifo.Queue)(q).Add(m)
 }
 
-func (q *queue) Pop() {
-	(*fifo.Queue)(q).Next()
+func (q *queue) Pop() int {
+	return (*fifo.Queue)(q).Pop()
 }
 
 func (q *queue) Peek() amqp.Message {

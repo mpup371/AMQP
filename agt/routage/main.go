@@ -1,4 +1,6 @@
-/*TODO: passer en modules */
+/*TODO: passer en modules
+go build -tags debug && PN_TRACE_FRM=1 ./routage
+*/
 package main
 
 import (
@@ -11,10 +13,7 @@ import (
 	"qpid.apache.org/electron"
 )
 
-//TODO voir si nécessaire
-// const credit = 20
-
-//TODO timeout paramétrable (et dans  broker)
+//TODO timeout paramétrable
 const timeout = 5 * time.Second
 
 var addr = flag.String("addr", ":amqp", "Network address to listen on, in the form \"host:port\"")
@@ -24,9 +23,9 @@ func main() {
 	var name string
 	host, err := os.Hostname()
 	if err == nil {
-		name = fmt.Sprintf("routage(%s)", host)
+		name = fmt.Sprintf("agtRoutage(%s)[%d]", host, os.Getegid())
 	} else {
-		name = fmt.Sprintf("routage(%d)", os.Getegid())
+		name = fmt.Sprintf("routage[%d]", os.Getegid())
 	}
 
 	b := &broker{

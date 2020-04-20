@@ -82,41 +82,33 @@ func (c *connection) run() {
 
 // receiver receives messages and pushes to a queue.
 func (c *connection) receiver(receiver electron.Receiver) {
-	id := fmt.Sprintf("connection.receiver(%s)", receiver.LinkName())
+	id := fmt.Sprintf("receiver(%s)", receiver.LinkName())
 	logger.Debugf(id, "Prefetch: %t, capacity: %v", receiver.Prefetch(), receiver.Capacity())
 	logger.Debugf(id, "push to queue %s", receiver.Target())
-	beginConnection := time.Now()
 	q := c.broker.queues.Get(receiver.Target())
-	var count int = 0
 	for {
 		if rm, err := receiver.Receive(); err == nil {
 			logger.Debugf(id, "%v: received %v", receiver, rm.Message.Body())
-			q.Add(rm.Message)
+			count := q.Add(rm.Message)
+			logger.Printf(id, "%v: %d", receiver.Target(), count)
 			rm.Accept()
 		} else {
 			logger.Debugf(id, "%v error: %v", receiver, err)
 			break
 		}
-		count++
 	}
-	endConnection := time.Now()
-	elapsed := endConnection.Sub(beginConnection)
-	ratio := int((float64)(count) / elapsed.Seconds())
-	logger.Printf(id, "%d messages received in %s (%d msg/s)", count, elapsed, ratio)
 }
 
 // sender pops messages from a queue and sends them.
 func (c *connection) sender(sender electron.Sender) {
-	id := fmt.Sprintf("connection.sender(%s)", sender.LinkName())
+	id := fmt.Sprintf("sender(%s)", sender.LinkName())
 	logger.Debugf(id, "sender from queue %s", sender.Source())
-	beginConnection := time.Now()
 	q := c.broker.queues.Get(sender.Source())
-	var count int = 0
 Loop:
 	for {
 		if sender.Error() != nil {
 			logger.Debugf(id, "%s closed: %v", sender, sender.Error())
-			break
+			break Loop
 		}
 		if m := q.Peek(); m != nil {
 			logger.Debugf(id, "sending %v ...", m.Body())
@@ -125,22 +117,20 @@ Loop:
 			logger.Debugf(id, "status %v, error %v", outcome.Status, outcome.Error)
 			switch outcome.Status { // Error, release or rejection
 			case electron.Accepted:
-				q.Pop()
+				count := q.Pop()
+				logger.Debugf(id, "... sent %v", m.Body())
+				logger.Printf("%v: %d", sender.Source(), count)
+
 			default:
 				logger.Printf(id, "status %v, error %v", outcome.Status, outcome.Error)
 				break Loop
 			}
-			logger.Debugf(id, "... sent %v", m.Body())
-			count++
 		} else {
-			logger.Debugf(id, "closing sender")
-			sender.Close(nil)
-			break Loop
+			time.Sleep(1 * time.Second)
+			// TODO si non bloquant
+			// logger.Debugf(id, "closing sender")
+			// sender.Close(nil)
+			// break Loop
 		}
 	}
-	endConnection := time.Now()
-	elapsed := endConnection.Sub(beginConnection)
-	ratio := int((float64)(count) / elapsed.Seconds())
-	logger.Printf(id, "%d messages sent in %s (%d msg/s)", count, elapsed, ratio)
-
 }
