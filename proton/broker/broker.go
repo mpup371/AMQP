@@ -165,10 +165,10 @@ func (h *handler) HandleMessagingEvent(t proton.MessagingEvent, e proton.Event) 
 		debugf("link %s received %#v", e.Link(), m)
 
 	case proton.MConnectionClosed, proton.MDisconnected:
-		for l, _ := range h.receivers {
+		for l := range h.receivers {
 			h.linkClosed(l, nil)
 		}
-		for l, _ := range h.senders {
+		for l := range h.senders {
 			h.linkClosed(l, nil)
 		}
 	}
@@ -240,6 +240,7 @@ func (r *receiver) run() {
 		r.h.injecter.Inject(func() {
 			// Check that the receiver is still open, it may have been closed by the remote end.
 			if r == r.h.receivers[r.l] {
+				debugf("accept delivery %v", d)
 				d.Accept()  // Accept the delivery
 				r.l.Flow(1) // Add one credit
 			}
@@ -294,7 +295,6 @@ func (s *sender) run() {
 				return
 			}
 			q = s.q // We have credit, enable selecting on the queue.
-
 		case m, ok := <-q: // q is only enabled when we have credit.
 			if !ok { // queue closed
 				return
