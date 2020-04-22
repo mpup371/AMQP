@@ -1,67 +1,28 @@
 /*
-Licensed to the Apache Software Foundation (ASF) under one
-or more contributor license agreements.  See the NOTICE file
-distributed with this work for additional information
-regarding copyright ownership.  The ASF licenses this file
-to you under the Apache License, Version 2.0 (the
-"License"); you may not use this file except in compliance
-with the License.  You may obtain a copy of the License at
+PN_TRACE_FRM=1 go run -tags debug .
 
-  http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing,
-software distributed under the License is distributed on an
-"AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
-KIND, either express or implied.  See the License for the
-specific language governing permissions and limitations
-under the License.
 */
-
-//
-// This is a simple AMQP broker implemented using the event-driven proton package.
-//
-// It maintains a set of named in-memory queues of messages. Clients can send
-// messages to queues or subscribe to receive messages from them.
-//
-
-// TODO: show how to handle acknowledgements from receivers and put rejected or
-// un-acknowledged messages back on their queues.
 
 package main
 
 import (
 	"flag"
-	"fmt"
+	"jf/AMQP/logger"
 	"log"
 	"net"
-	"os"
 	"sync"
 
 	"qpid.apache.org/amqp"
 	"qpid.apache.org/proton"
 )
 
-// Usage and command-line flags
-func usage() {
-	fmt.Fprintf(os.Stderr, `
-Usage: %s
-A simple broker-like demo. Queues are created automatically for sender or receiver addresses.
-`, os.Args[0])
-	flag.PrintDefaults()
-}
-
 var addr = flag.String("addr", ":amqp", "Listening address")
 var credit = flag.Int("credit", 100, "Receiver credit window")
 var qsize = flag.Int("qsize", 1000, "Max queue size")
-var debug = flag.Bool("debug", false, "Print detailed debug output")
-var debugf = func(format string, data ...interface{}) {} // Default no debugging output
 
 func main() {
-	flag.Usage = usage
 	flag.Parse()
-	if *debug {
-		debugf = func(format string, data ...interface{}) { log.Printf(format, data...) }
-	}
+
 	b := &broker{makeQueues(*qsize)}
 	if err := b.run(); err != nil {
 		log.Fatal(err)
@@ -80,11 +41,11 @@ func (b *broker) run() error {
 		return err
 	}
 	defer listener.Close()
-	fmt.Printf("Listening on %s\n", listener.Addr())
+	logger.Printf("broker", "Listening on %s\n", listener.Addr())
 	for {
 		conn, err := listener.Accept()
 		if err != nil {
-			debugf("Accept error: %v", err)
+			logger.Debugf("broker", "Accept error: %v", err)
 			continue
 		}
 		adapter := proton.NewMessagingAdapter(newHandler(&b.queues))
@@ -94,14 +55,14 @@ func (b *broker) run() error {
 		adapter.AutoAccept = false
 		engine, err := proton.NewEngine(conn, adapter)
 		if err != nil {
-			debugf("Connection error: %v", err)
+			logger.Printf("broker", "Connection error: %v", err)
 			continue
 		}
 		engine.Server() // Enable server-side protocol negotiation.
-		debugf("Accepted connection %s", engine)
+		logger.Debugf("broker", "Accepted connection %s", engine)
 		go func() { // Start goroutine to run the engine event loop
 			engine.Run()
-			debugf("Closed %s", engine)
+			logger.Debugf("broker", "Closed %s", engine)
 		}()
 	}
 }
@@ -160,9 +121,10 @@ func (h *handler) HandleMessagingEvent(t proton.MessagingEvent, e proton.Event) 
 			proton.CloseError(e.Link(), amqp.Errorf(amqp.NotFound, "link %s receiver not found", e.Link()))
 			break
 		}
+		//TODO  pas de credit un seul msg  à la fois
 		// This will not block as AMQP credit is set to the buffer capacity.
 		r.buffer <- receivedMessage{e.Delivery(), m}
-		debugf("link %s received %#v", e.Link(), m)
+		logger.Debugf("broker", "link %s received %#v", e.Link(), m)
 
 	case proton.MConnectionClosed, proton.MDisconnected:
 		for l := range h.receivers {
@@ -219,6 +181,7 @@ type receivedMessage struct {
 
 // startReceiver creates a receiver and a goroutine for its run() method.
 func (h *handler) startReceiver(e proton.Event) {
+	logger.Debugf("broker", "push message to %s", e.Link().RemoteTarget().Address())
 	q := h.queues.Get(e.Link().RemoteTarget().Address())
 	r := &receiver{
 		link:   makeLink(e.Link(), q, h),
@@ -240,7 +203,7 @@ func (r *receiver) run() {
 		r.h.injecter.Inject(func() {
 			// Check that the receiver is still open, it may have been closed by the remote end.
 			if r == r.h.receivers[r.l] {
-				debugf("accept delivery %v", d)
+				logger.Debugf("broker", "accept delivery %v", d)
 				d.Accept()  // Accept the delivery
 				r.l.Flow(1) // Add one credit
 			}
@@ -261,6 +224,7 @@ type sender struct {
 
 // startSender creates a sender and starts a goroutine for sender.run()
 func (h *handler) startSender(e proton.Event) {
+	logger.Debugf("broker", "get message from %s", e.Link().RemoteSource().Address())
 	q := h.queues.Get(e.Link().RemoteSource().Address())
 	s := &sender{
 		link:   makeLink(e.Link(), q, h),
@@ -328,8 +292,9 @@ func (s *sender) run() {
 func (s *sender) sendOne(m amqp.Message) error {
 	delivery, err := s.l.Send(m)
 	if err == nil {
+		//TODO pas unreliable
 		delivery.Settle() // Pre-settled, unreliable.
-		debugf("link %s sent %#v", s.l, m)
+		logger.Debugf("broker", "link %s sent %#v", s.l, m)
 	} else {
 		s.q.PutBack(m) // Put the message back on the queue, don't block
 	}
