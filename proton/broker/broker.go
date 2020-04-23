@@ -7,11 +7,14 @@ package main
 
 import (
 	"flag"
+	"fmt"
 	"jf/AMQP/logger"
 	"log"
 	"net"
 	"sync"
+	"time"
 
+	"qpid.apache.org/amqp"
 	"qpid.apache.org/proton"
 )
 
@@ -59,9 +62,14 @@ func (b *broker) run() error {
 		}
 		engine.Server() // Enable server-side protocol negotiation.
 		logger.Printf("broker", "Accepted connection %s", engine)
+		timeout := time.AfterFunc(5*time.Second, func() {
+			logger.Printf("timeout", "Connection timeout")
+			engine.CloseTimeout(fmt.Errorf("Server timeout"), 1*time.Second)
+		})
 		go func() { // Start goroutine to run the engine event loop
 			engine.Run()
-			logger.Printf("broker", "Closed %s", engine)
+			logger.Printf("broker", "Closed %s (%v)", engine, engine.Error())
+			timeout.Stop()
 		}()
 	}
 }
@@ -85,6 +93,13 @@ func newHandler(queues *queues) *handler {
 	}
 }
 
+/*TODO
+voir comment gérer les timeout ici:
+[0x1dea220]: AMQP:FRAME:0 -> @attach(18) [name="receiver", handle=0, role=true, snd-settle-mode=2, rcv-settle-mode=0,
+ source=@source(40) [address="queue1", durable=0, timeout=0, dynamic=false],
+  target=@target(41) [durable=0, timeout=0, dynamic=false], initial-delivery-count=0, max-message-size=0]
+*/
+
 // HandleMessagingEvent handles an event, called in the handler goroutine.
 func (h *handler) HandleMessagingEvent(t proton.MessagingEvent, e proton.Event) {
 	switch t {
@@ -96,7 +111,6 @@ func (h *handler) HandleMessagingEvent(t proton.MessagingEvent, e proton.Event) 
 
 	case proton.MLinkOpening:
 		logger.Debugf("handler", "Handle: %v", t)
-
 		if e.Link().IsReceiver() {
 			e.Link().Flow(1) // Give credit to fill the buffer to capacity.
 		} else {
@@ -154,10 +168,27 @@ func (h *handler) startReceiver(e proton.Event) {
 }
 
 // startSender creates a sender and starts a goroutine for sender.run()
-func (h *handler) startSender(e proton.Event) {
+func (h *handler) startSender(e proton.Event) { //TODO return error ?
 	logger.Debugf("broker", "get message from %s", e.Link().RemoteSource().Address())
 	//TODO  q := h.queues.Get(e.Link().RemoteSource().Address())
+	sendMsg(e.Link())
 
+}
+func sendMsg(sender proton.Link) error {
+	logger.Debugf("sendMsg", "sending on link %v", sender)
+
+	m := amqp.NewMessage()
+	body := fmt.Sprintf("message body")
+	m.Marshal(body)
+	delivery, err := sender.Send(m)
+	logger.Debugf("handler", "Delivery settled: settled=%v", delivery.Settled())
+	if err == nil {
+		logger.Debugf("sendMsg", "%#v", m)
+		logger.Printf("sendMsg", "message sent")
+	} else {
+		logger.Printf("sendMsg", "error: %v", err)
+	}
+	return err
 }
 
 // // sendable signals that the sender has credit, it does not block.
