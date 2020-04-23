@@ -80,16 +80,11 @@ func (b *broker) run() error {
 // goroutine and other goroutines sending and receiving messages.
 type handler struct {
 	queues *queues
-	// receivers map[proton.Link]*receiver
-	// senders   map[proton.Link]*sender
-	// injecter  proton.Injecter
 }
 
 func newHandler(queues *queues) *handler {
 	return &handler{
 		queues: queues,
-		// receivers: make(map[proton.Link]*receiver),
-		// senders:   make(map[proton.Link]*sender),
 	}
 }
 
@@ -100,63 +95,47 @@ voir comment gérer les timeout ici:
   target=@target(41) [durable=0, timeout=0, dynamic=false], initial-delivery-count=0, max-message-size=0]
 */
 
+func logEvent(t proton.MessagingEvent, e proton.Event) {
+	logger.Debugf("event", "type=%v", t)
+}
+
 // HandleMessagingEvent handles an event, called in the handler goroutine.
 func (h *handler) HandleMessagingEvent(t proton.MessagingEvent, e proton.Event) {
 	switch t {
 
 	case proton.MStart:
-		logger.Debugf("handler", "Handle: %v", t)
-
-		// h.injecter = e.Injecter()
+		logger.Debugf("event", "type=%v", t)
 
 	case proton.MLinkOpening:
-		logger.Debugf("handler", "Handle: %v", t)
+		logger.Debugf("event", "type=%v", t)
 		if e.Link().IsReceiver() {
 			e.Link().Flow(1) // Give credit to fill the buffer to capacity.
 		} else {
-			h.startSender(e)
+			h.sendMsg(e.Link())
 		}
 
 	case proton.MLinkClosed:
-		logger.Debugf("handler", "Handle: %v", t)
+		logger.Debugf("event", "type=%v", t)
 
 	case proton.MSendable:
-		logger.Debugf("handler", "Handle: %v", t)
+		logger.Debugf("event", "type=%v", t)
 
 	case proton.MMessage:
-		logger.Debugf("handler", "Handle: %v", t)
+		logger.Debugf("event", "type=%v", t)
 		m, err := e.Delivery().Message() // Message() must be called while handling the MMessage event.
 		if err != nil {
+			logger.Printf("handler", "Message error: %v", err)
 			proton.CloseError(e.Link(), err)
-			break
+			return
 		}
 
 		logger.Debugf("broker", "link %s received %#v", e.Link(), m)
 		e.Delivery().Accept()
 		logger.Debugf("handler", "Delivery accepted, settled=%#v", e.Delivery().Settled())
 
-	case proton.MConnectionClosed, proton.MDisconnected:
-		logger.Debugf("handler", "Handle: %v", t)
-
 	default:
-		logger.Debugf("handler", "default: %v", t)
+		logger.Debugf("event", "type=%v", t)
 	}
-}
-
-// link has some common data and methods that are used by the sender and receiver types.
-//
-// An active link is represented by a sender or receiver value and a goroutine
-// running its run() method. The run() method communicates with the handler via
-// channels.
-type link struct {
-	l proton.Link
-	q queue
-	h *handler
-}
-
-func makeLink(l proton.Link, q queue, h *handler) link {
-	lnk := link{l: l, q: q, h: h}
-	return lnk
 }
 
 // startReceiver creates a receiver and a goroutine for its run() method.
@@ -167,14 +146,7 @@ func (h *handler) startReceiver(e proton.Event) {
 	e.Delivery().Accept() // Accept the delivery
 }
 
-// startSender creates a sender and starts a goroutine for sender.run()
-func (h *handler) startSender(e proton.Event) { //TODO return error ?
-	logger.Debugf("broker", "get message from %s", e.Link().RemoteSource().Address())
-	//TODO  q := h.queues.Get(e.Link().RemoteSource().Address())
-	sendMsg(e.Link())
-
-}
-func sendMsg(sender proton.Link) error {
+func (h *handler) sendMsg(sender proton.Link) error {
 	logger.Debugf("sendMsg", "sending on link %v", sender)
 
 	m := amqp.NewMessage()
