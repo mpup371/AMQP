@@ -9,11 +9,11 @@ import (
 
 type queue fifo.Queue
 
-func (q *queue) Add(m amqp.Message) int {
+func (q *queue) Add(m amqp.Message) uint {
 	return (*fifo.Queue)(q).Add(m)
 }
 
-func (q *queue) Pop() int {
+func (q *queue) Pop() uint {
 	return (*fifo.Queue)(q).Pop()
 }
 

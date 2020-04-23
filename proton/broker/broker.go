@@ -7,13 +7,11 @@ package main
 
 import (
 	"flag"
-	"fmt"
 	"jf/AMQP/logger"
 	"log"
 	"net"
 	"time"
 
-	"qpid.apache.org/amqp"
 	"qpid.apache.org/proton"
 )
 
@@ -29,7 +27,7 @@ type broker struct {
 func main() {
 	flag.Parse()
 
-	b := &broker{} //TODO queues
+	b := &broker{makeQueues()}
 	if err := b.run(); err != nil {
 		log.Fatal(err)
 	}
@@ -61,14 +59,10 @@ func (b *broker) run() error {
 		}
 		engine.Server() // Enable server-side protocol negotiation.
 		logger.Printf("broker", "Accepted connection %s", engine)
-		timeout := time.AfterFunc(5*time.Second, func() {
-			logger.Printf("timeout", "Connection timeout")
-			engine.CloseTimeout(fmt.Errorf("Server timeout"), 1*time.Second)
-		})
+
 		go func() { // Start goroutine to run the engine event loop
 			engine.Run()
 			logger.Printf("broker", "Closed %s (%v)", engine, engine.Error())
-			timeout.Stop()
 		}()
 	}
 }
@@ -121,16 +115,7 @@ func (h *handler) HandleMessagingEvent(t proton.MessagingEvent, e proton.Event) 
 
 	case proton.MMessage:
 		logger.Debugf("event", "type=%v", t)
-		m, err := e.Delivery().Message() // Message() must be called while handling the MMessage event.
-		if err != nil {
-			logger.Printf("handler", "Message error: %v", err)
-			proton.CloseError(e.Link(), err)
-			return
-		}
-
-		logger.Debugf("broker", "link %s received %#v", e.Link(), m)
-		e.Delivery().Accept()
-		logger.Debugf("handler", "Delivery accepted, settled=%#v", e.Delivery().Settled())
+		h.recvMsg(e)
 
 	default:
 		logger.Debugf("event", "type=%v", t)
@@ -138,50 +123,35 @@ func (h *handler) HandleMessagingEvent(t proton.MessagingEvent, e proton.Event) 
 }
 
 // startReceiver creates a receiver and a goroutine for its run() method.
-func (h *handler) startReceiver(e proton.Event) {
-	logger.Debugf("broker", "push message to %s", e.Link().RemoteTarget().Address())
-	// TODO q := h.queues.Get(e.Link().RemoteTarget().Address())
-	logger.Debugf("broker", "accept delivery %v", e.Delivery())
-	e.Delivery().Accept() // Accept the delivery
+func (h *handler) recvMsg(e proton.Event) {
+	addr := e.Link().RemoteTarget().Address()
+	logger.Debugf("broker", "push message to %s", addr)
+	q := h.queues.Get(addr)
+	if msg, err := e.Delivery().Message(); err == nil {
+		n := q.Add(msg)
+		logger.Printf("broker", "message queued in %v(%d)", addr, n)
+		e.Delivery().Accept() // Accept the delivery
+	} else {
+		logger.Printf("broker", "error reading message: %v", err)
+		e.Delivery().Release(true) // Accept the delivery
+	}
 }
 
-func (h *handler) sendMsg(sender proton.Link) error {
+func (h *handler) sendMsg(sender proton.Link) {
 	logger.Debugf("sendMsg", "sending on link %v", sender)
-
-	m := amqp.NewMessage()
-	body := fmt.Sprintf("message body")
-	m.Marshal(body)
-	delivery, err := sender.Send(m)
-	logger.Debugf("handler", "Delivery settled: settled=%v", delivery.Settled())
-	if err == nil {
-		logger.Debugf("sendMsg", "%#v", m)
-		logger.Printf("sendMsg", "message sent")
+	addr := sender.RemoteSource().Address()
+	logger.Debugf("broker", "pull message from %s", addr)
+	q := h.queues.Get(addr)
+	msg := q.Peek()
+	for ; msg == nil; msg = q.Peek() {
+		time.Sleep(1 * time.Second)
+	}
+	if delivery, err := sender.Send(msg); err == nil {
+		logger.Debugf("sendMsg", "msg=%#v", msg)
+		logger.Debugf("sendMsg", "delivery=%v", delivery.RemoteState())
+		n := q.Pop()
+		logger.Printf("sendMsg", "message sent from  %v(%d)", addr, n)
 	} else {
 		logger.Printf("sendMsg", "error: %v", err)
 	}
-	return err
 }
-
-// // sendable signals that the sender has credit, it does not block.
-// // sender.credit has capacity 1, if it is already full we carry on.
-// func (s *sender) sendable() {
-// 	select { // Non-blocking
-// 	case s.credit <- struct{}{}:
-// 	default:
-// 	}
-// }
-
-// sendOne runs in the handler goroutine. It sends a single message.
-// func sendOne(m amqp.Message) error {
-// 	delivery, err := s.l.Send(m)
-// 	logger.Debugf("sendOne", "delivery: %#v", delivery)
-// 	if err == nil {
-// 		// //TODO pas unreliable
-// 		// delivery.Settle() // Pre-settled, unreliable.
-// 		logger.Debugf("sendOne", "link %s sent %#v", s.l, m)
-// 	} else {
-// 		logger.Printf("sendOne", "error: ", err)
-// 		q.PutBack(m) // Put the message back on the queue, don't block
-// 	}
-// 	return err
-// }

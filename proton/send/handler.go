@@ -3,7 +3,6 @@ package main
 import (
 	"fmt"
 	"jf/AMQP/logger"
-	"time"
 
 	"qpid.apache.org/amqp"
 	"qpid.apache.org/proton"
@@ -43,8 +42,6 @@ func (h *handler) HandleMessagingEvent(t proton.MessagingEvent, e proton.Event) 
 		*/
 		logger.Debugf("handler", "session: state=%v", session.State())
 	case proton.MSessionOpened:
-		time.Sleep(10 * time.Second)
-
 		logEvent(t, e)
 		logger.Debugf("handler", "session: state=%v", e.Session().State())
 		sender := e.Session().Sender("sender")
