@@ -11,7 +11,6 @@ import (
 	"jf/AMQP/logger"
 	"log"
 	"net"
-	"sync"
 	"time"
 
 	"qpid.apache.org/amqp"
@@ -186,27 +185,3 @@ func (h *handler) sendMsg(sender proton.Link) error {
 // 	}
 // 	return err
 // }
-
-// Use a buffered channel as a very simple queue.
-type queue *struct{}
-
-// Concurrent-safe map of queues.
-type queues struct {
-	m    map[string]queue
-	lock sync.Mutex
-}
-
-func makeQueues(queueSize int) queues {
-	return queues{m: make(map[string]queue)}
-}
-
-// Create a queue if not found.
-func (qs *queues) Get(name string) queue {
-	qs.lock.Lock()
-	defer qs.lock.Unlock()
-	q, ok := qs.m[name]
-	if !ok {
-		qs.m[name] = q
-	}
-	return q
-}

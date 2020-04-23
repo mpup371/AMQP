@@ -25,8 +25,8 @@ type chunk struct {
 //TODO error if not enough memory
 func newChunk(size uint) *chunk {
 	return &chunk{
-		make([]interface{}, initChunkSize),
-		initChunkSize,
+		make([]interface{}, size),
+		size,
 		0, 0,
 		nil,
 	}
@@ -53,7 +53,7 @@ func NewQueue() (q *Queue) {
 
 // addChunk will allocate new chunks depending on actuel queue size
 func (q *Queue) addChunk() {
-	if q.count > 2*q.curChunkSize {
+	if q.count >= 2*q.curChunkSize {
 		q.curChunkSize = q.count
 	}
 	q.tail.next = newChunk(q.curChunkSize)
@@ -118,10 +118,11 @@ func (q *Queue) Next() (item interface{}, length uint) {
 		// if there are no follow up chunks then reset the current one so it can be used again.
 		if q.count == 0 {
 			q.curChunkSize = initChunkSize
-			q.head = newChunk(q.curChunkSize)
+			q.head = newChunk(q.curChunkSize) // free memory in case of big empty chunk
 			q.head.first = 0
 			q.head.last = 0
 			q.head.next = nil
+			q.tail = q.head
 		} else {
 			// set queue's head chunk to the next chunk
 			// old head will fall out of scope and be GC-ed
