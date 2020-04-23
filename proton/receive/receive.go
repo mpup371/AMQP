@@ -33,7 +33,7 @@ func main() {
 	// adapter.AutoSettle = false
 	adapter.AutoAccept = false
 	// adapter.AutoOpen = false
-	// adapter.Prefetch = 1
+	adapter.Prefetch = 0
 	engine, err := proton.NewEngine(connection, adapter)
 	fatalIf(err)
 	logger.Printf("main()", "Accepted %v", engine)

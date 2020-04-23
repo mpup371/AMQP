@@ -84,9 +84,9 @@ func (h *handler) HandleMessagingEvent(t proton.MessagingEvent, e proton.Event) 
 	case proton.MDisconnected:
 		logger.Debugf("handler", "Disconnected : %v (%v)", e.Connection(), e.Connection().Error())
 	case proton.MAccepted:
-		logger.Debugf("handler", "Accepted: settled=%v", e.Delivery().Settled())
+		logger.Debugf("handler", "Delivery accepted: settled=%v", e.Delivery().Settled())
 	case proton.MSettled:
-		logger.Debugf("handler", "Settled: settled=%v", e.Delivery().Settled())
+		logger.Debugf("handler", "Delivery settled: settled=%v", e.Delivery().Settled())
 		//TODO répéter si non accepté ou timeout
 		e.Link().Close()
 		/*
@@ -105,9 +105,10 @@ func sendMsg(sender proton.Link) error {
 	body := fmt.Sprintf("message body")
 	m.Marshal(body)
 	delivery, err := sender.Send(m)
-	logger.Debugf("sendMsg", "delivery: %#v", delivery)
+	logger.Debugf("sendMsg", "delivery: %#v", delivery.Local())
 	if err == nil {
-		logger.Printf("sendMsg", "sent: %#v", m)
+		logger.Debugf("sendMsg", "%#v", m)
+		logger.Printf("sendMsg", "message sent")
 	} else {
 		logger.Printf("sendMsg", "error: %v", err)
 	}

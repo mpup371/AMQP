@@ -82,7 +82,7 @@ func main() {
 	fatalIf(err)
 	logger.Printf("main()", "Accepted connection %v", engine)
 	engine.Run()
-	logger.Printf("main()", "Terminated %s with error: %v", engine, engine.Error())
+	logger.Printf("main()", "Terminated %s (%v)", engine, engine.Error())
 }
 
 func fatalIf(err error) {
