@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"jf/AMQP/agt-proton/util"
 	"jf/AMQP/logger"
 
 	"qpid.apache.org/amqp"
@@ -12,16 +13,12 @@ type handler struct {
 	topic string
 }
 
-func logEvent(t proton.MessagingEvent, e proton.Event) {
-	logger.Debugf("event", "type=%v", t)
-}
-
 func (h *handler) HandleMessagingEvent(t proton.MessagingEvent, e proton.Event) {
 
 	switch t {
 	case proton.MStart:
-		logEvent(t, e)
-		e.Connection().SetContainer("jfContainer")
+		util.LogEvent(t, e)
+		e.Connection().SetContainer(util.GetName())
 		// e.Connection().Transport().SetIdleTimeout(5 * time.Second) //TODO paramétrable // n'a pas l'air très efficace
 		e.Connection().Open()
 		/*
@@ -31,7 +28,7 @@ func (h *handler) HandleMessagingEvent(t proton.MessagingEvent, e proton.Event) 
 			[0xe05220]: AMQP:FRAME:0 <- @open(16) [container-id="", channel-max=32767]
 		*/
 	case proton.MConnectionOpened:
-		logEvent(t, e)
+		util.LogEvent(t, e)
 		session, err := e.Connection().Session()
 		fatalIf(err)
 		logger.Debugf("handler", "session: state=%v", session.State())
@@ -42,7 +39,7 @@ func (h *handler) HandleMessagingEvent(t proton.MessagingEvent, e proton.Event) 
 		*/
 		logger.Debugf("handler", "session: state=%v", session.State())
 	case proton.MSessionOpened:
-		logEvent(t, e)
+		util.LogEvent(t, e)
 		logger.Debugf("handler", "session: state=%v", e.Session().State())
 		sender := e.Session().Sender("sender")
 		logger.Debugf("handler", "sender: state=%v", sender.State())
@@ -56,7 +53,7 @@ func (h *handler) HandleMessagingEvent(t proton.MessagingEvent, e proton.Event) 
 			[0xe05220]: AMQP:FRAME:0 <- @flow(19) [next-incoming-id=0, incoming-window=2147483647, next-outgoing-id=0, outgoing-window=2147483647, handle=0, delivery-count=0, link-credit=100, drain=false]
 		*/
 	case proton.MLinkOpened:
-		logEvent(t, e)
+		util.LogEvent(t, e)
 		logger.Debugf("handler", "sender: state=%v", e.Link().State())
 		sendMsg(e.Link())
 		/*
@@ -65,14 +62,14 @@ func (h *handler) HandleMessagingEvent(t proton.MessagingEvent, e proton.Event) 
 			[0x2438220]: AMQP:FRAME:0 <- @disposition(21) [role=true, first=0, settled=true, state=@accepted(36) []]
 		*/
 	case proton.MLinkClosed:
-		logEvent(t, e)
+		util.LogEvent(t, e)
 		e.Session().Close()
 		/*
 			[0xd5c490]: AMQP:FRAME:0 -> @end(23) []
 			[0xd5c490]: AMQP:FRAME:0 <- @end(23) []
 		*/
 	case proton.MSessionClosed:
-		logEvent(t, e)
+		util.LogEvent(t, e)
 		e.Connection().Close()
 		/*
 			[0x146d4b0]: AMQP:FRAME:0 -> @close(24) []
@@ -81,25 +78,25 @@ func (h *handler) HandleMessagingEvent(t proton.MessagingEvent, e proton.Event) 
 			[0x146d4b0]:   IO:FRAME:  <- EOS
 		*/
 	case proton.MSendable:
-		logEvent(t, e)
+		util.LogEvent(t, e)
 		logger.Debugf("handler", "Sendable, credit=%d", e.Link().Credit())
 		/*
 			[0xe31280]: AMQP:FRAME:0 -> @transfer(20) [handle=0, delivery-id=0, delivery-tag=b"1", message-format=0, settled=true] (25) "\x00SpE\x00SsE\x00Sw\xa1\x0cmessage body"
 		*/
 	case proton.MConnectionClosed:
-		logEvent(t, e)
+		util.LogEvent(t, e)
 		logger.Debugf("handler", "connection closed: %v", e.Connection().String())
 		/*
 			[0xd5c490]:   IO:FRAME:  <- EOS
 		*/
 	case proton.MDisconnected:
-		logEvent(t, e)
+		util.LogEvent(t, e)
 		logger.Debugf("handler", "Disconnected : %v (%v)", e.Connection(), e.Connection().Error())
 	case proton.MAccepted:
-		logEvent(t, e)
+		util.LogEvent(t, e)
 		logger.Debugf("handler", "Delivery accepted: settled=%v", e.Delivery().Settled())
 	case proton.MSettled:
-		logEvent(t, e)
+		util.LogEvent(t, e)
 		logger.Debugf("handler", "Delivery settled: settled=%v", e.Delivery().Settled())
 		//TODO répéter si non accepté ou timeout
 		e.Link().Close()
@@ -108,7 +105,7 @@ func (h *handler) HandleMessagingEvent(t proton.MessagingEvent, e proton.Event) 
 			[0x146d4b0]: AMQP:FRAME:0 <- @detach(22) [handle=0, closed=true]
 		*/
 	default:
-		logEvent(t, e)
+		util.LogEvent(t, e)
 	}
 }
 
