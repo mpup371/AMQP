@@ -7,9 +7,11 @@ package main
 
 import (
 	"flag"
+	"fmt"
 	"jf/AMQP/logger"
 	"log"
 	"net"
+	"os"
 	"time"
 
 	"qpid.apache.org/proton"
@@ -24,9 +26,20 @@ type broker struct {
 	queues queues
 }
 
+var name string
+
+func init() {
+
+}
+
 func main() {
 	flag.Parse()
-
+	host, err := os.Hostname()
+	if err == nil {
+		name = fmt.Sprintf("routage(%s)[%d]", host, os.Getegid())
+	} else {
+		name = fmt.Sprintf("routage[%d]", os.Getegid())
+	}
 	b := &broker{makeQueues()}
 	if err := b.run(); err != nil {
 		log.Fatal(err)
@@ -64,7 +77,7 @@ func (b *broker) run() error {
 			logger.Printf("broker", "Connection error: %v", err)
 			continue
 		}
-
+		engine.Connection().SetContainer(name)
 		engine.Server() // Enable server-side protocol negotiation.
 		logger.Printf("broker", "Accepted connection %s", engine)
 
@@ -129,7 +142,7 @@ func (h *handler) HandleMessagingEvent(t proton.MessagingEvent, e proton.Event) 
 	case proton.MAccepted:
 		logEvent(t, e)
 		n := h.q.Pop()
-		logger.Printf("sendMsg", "message sent from  %v(%d): accepted", addr, n)
+		logger.Printf("sendMsg", "message sent from  %s(%d): accepted", addr, n)
 	//AutoSettle suffisant
 	// case proton.MSettled:
 	// 	logEvent(t, e)

@@ -78,8 +78,7 @@ func (h *handler) HandleMessagingEvent(t proton.MessagingEvent, e proton.Event) 
 		/*
 			[0xf14260]: AMQP:FRAME:0 -> @disposition(21) [role=true, first=0, settled=true, state=@accepted(36) []]
 		*/
-		//TODO mode bloquant
-		// e.Link().Close()
+		e.Link().Close()
 	case proton.MLinkClosed:
 		logEvent(t, e)
 		e.Session().Close()
