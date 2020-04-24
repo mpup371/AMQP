@@ -17,11 +17,9 @@ voir comment gérer les timeout ici:
 
 // HandleMessagingEvent handles an event, called in the handler goroutine.
 func (h *handler) HandleMessagingEvent(t proton.MessagingEvent, e proton.Event) {
+	util.LogEvent(t, e)
 	switch t {
-	case proton.MStart:
-		util.LogEvent(t, e)
-	case proton.MLinkOpening:
-		util.LogEvent(t, e)
+	case proton.MLinkOpened:
 		if e.Link().IsReceiver() {
 			addr := e.Link().RemoteTarget().Address()
 			logger.Debugf("broker", "push message to %s", addr)
@@ -30,26 +28,21 @@ func (h *handler) HandleMessagingEvent(t proton.MessagingEvent, e proton.Event) 
 		} else {
 			addr := e.Link().RemoteSource().Address()
 			logger.Debugf("broker", "pull message from %s", addr)
-			h.q = h.queues.Get(addr)
-			h.sendMsg(e.Link())
+			if addr == "admin" {
+				h.q = nil
+				h.sendAdmin(e.Link())
+			} else {
+				h.q = h.queues.Get(addr)
+				h.sendMsg(e.Link())
+			}
 		}
-	case proton.MLinkClosed:
-		util.LogEvent(t, e)
-	case proton.MSendable:
-		util.LogEvent(t, e)
 	case proton.MMessage:
-		util.LogEvent(t, e)
 		h.recvMsg(e)
 	case proton.MAccepted:
-		util.LogEvent(t, e)
-		n := h.q.Pop()
-		logger.Printf("sendMsg", "message sent from  %s(%d): accepted", addr, n)
-	//AutoSettle suffisant
-	// case proton.MSettled:
-	// 	util.LogEvent(t, e)
-	// 	e.Delivery().Settle()
-	default:
-		util.LogEvent(t, e)
+		if h.q != nil {
+			n := h.q.Pop()
+			logger.Printf("sendMsg", "message sent from  %s(%d): accepted", addr, n)
+		}
 	}
 }
 

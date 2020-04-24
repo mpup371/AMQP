@@ -2,23 +2,29 @@ package main
 
 import (
 	"sync"
+	"time"
 
 	fifo "github.com/foize/go.fifo"
 	"qpid.apache.org/amqp"
 )
 
-type queue fifo.Queue
-
-func (q *queue) Add(m amqp.Message) uint {
-	return (*fifo.Queue)(q).Add(m)
+type queue struct {
+	fifo.Queue
+	creationDate int64
+	lastAccess   int64
 }
 
+//TODO remonter lock ici
+
+func (q *queue) Add(m amqp.Message) uint {
+	return q.Add(m)
+}
 func (q *queue) Pop() uint {
-	return (*fifo.Queue)(q).Pop()
+	return q.Pop()
 }
 
 func (q *queue) Peek() amqp.Message {
-	m := (*fifo.Queue)(q).Peek()
+	m := q.Peek()
 	if m == nil {
 		return nil
 	}
@@ -42,7 +48,29 @@ func (qs *queues) Get(name string) *queue {
 	if q, ok := qs.m[name]; ok {
 		return q
 	}
-	q := (*queue)(fifo.NewQueue())
-	qs.m[name] = q
-	return q
+	q := queue{fifo.NewQueue(), creationDate: time.Now().Unix()}
+	qs.m[name] = &q
+	return &q
+}
+
+func (qs *queues) Len() int {
+	qs.lock.Lock()
+	defer qs.lock.Unlock()
+	return len(qs.m)
+}
+
+type Qinfo struct {
+	Name string
+	Size uint
+}
+
+func (qs *queues) Infos() (l []Qinfo) {
+	qs.lock.Lock()
+	defer qs.lock.Unlock()
+	l = make([]Qinfo, 0, len(qs.m))
+
+	for name, q := range qs.m {
+		l = append(l, Qinfo{name, (*fifo.Queue)(q).Len()})
+	}
+	return l
 }

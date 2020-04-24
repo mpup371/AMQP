@@ -41,14 +41,13 @@ type Queue struct {
 }
 
 // NewQueue creates a new and empty *fifo.Queue
-func NewQueue() (q *Queue) {
+func NewQueue() (q Queue) {
 	initChunk := newChunk(initChunkSize)
-	q = &Queue{
+	return Queue{
 		head:         initChunk,
 		tail:         initChunk,
 		curChunkSize: initChunkSize,
 	}
-	return q
 }
 
 // addChunk will allocate new chunks depending on actuel queue size
@@ -108,6 +107,9 @@ func (q *Queue) Next() (item interface{}, length uint) {
 
 	// Get item from queue
 	item = q.head.items[q.head.first]
+
+	//allow GC item later
+	q.head.items[q.head.first] = nil
 
 	// increment first position and decrement queue item count
 	q.head.first++
@@ -182,10 +184,9 @@ func (q *Queue) Pop() uint {
 	if q.count == 0 {
 		return 0
 	}
-	// FIXME: why would this check be required?
-	// if q.head.first >= q.head.last {
-	// 	return nil
-	// }
+
+	//allow GC item later
+	q.head.items[q.head.first] = nil
 
 	// increment first position and decrement queue item count
 	q.head.first++
