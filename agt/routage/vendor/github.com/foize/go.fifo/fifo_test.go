@@ -23,11 +23,11 @@ func TestBasic(t *testing.T) {
 	testAssert(t, q.Len() == 0, "Could not assert that new Queue has length zero (0).")
 	q.Add(10)
 	testAssert(t, q.Len() == 1, "Could not assert that Queue has lenght 1 after adding one item.")
-	testAssert(t, q.Next().(int) == 10, "Could not retrieve item from Queue correctly.")
+	testAssert(t, q.Peek().(int) == 10, "Could not retrieve item from Queue correctly.")
 	testAssert(t, q.Len() == 0, "Could not assert that Queue has length 0 after retrieving item.")
 	q.Add(11)
 	testAssert(t, q.Len() == 1, "Could not assert that Queue has length 1 after adding one item the second time.")
-	testAssert(t, q.Next().(int) == 11, "Could not retrieve item from Queue correctly the second time.")
+	testAssert(t, q.Peek().(int) == 11, "Could not retrieve item from Queue correctly the second time.")
 	testAssert(t, q.Len() == 0, "Could not assert that Queue has length 0 after retrieving item the second time.")
 }
 
@@ -48,9 +48,23 @@ func TestRandomized(t *testing.T) {
 			}
 			for i := 0; i < count; i++ {
 				testAssert(t, q.Len() > 0, "len==0", q.Len())
-				testAssert(t, q.Next().(int) == first)
+				testAssert(t, q.Peek().(int) == first)
 				first++
 			}
 		}
 	}
+}
+
+func BenchmarkAlloc(b *testing.B) {
+	for n := 0; n < b.N; n++ {
+
+		q := NewQueue()
+		for i := 0; i < 100000; i++ {
+			q.Add(0)
+		}
+		for i := 0; i < 100000; i++ {
+			q.Pop()
+		}
+	}
+	b.ReportAllocs()
 }

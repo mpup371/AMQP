@@ -58,3 +58,17 @@ func TestRandomized(t *testing.T) {
 		}
 	}
 }
+
+func BenchmarkAlloc(b *testing.B) {
+	for n := 0; n < b.N; n++ {
+
+		q := NewQueue()
+		for i := 0; i < 100000; i++ {
+			q.Add(0)
+		}
+		for i := 0; i < 100000; i++ {
+			q.Pop()
+		}
+	}
+	b.ReportAllocs()
+}

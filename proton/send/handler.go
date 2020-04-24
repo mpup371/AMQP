@@ -114,7 +114,6 @@ func (h *handler) HandleMessagingEvent(t proton.MessagingEvent, e proton.Event) 
 
 func sendMsg(sender proton.Link) error {
 	logger.Debugf("sendMsg", "sending on link %v", sender)
-
 	m := amqp.NewMessage()
 	body := fmt.Sprintf("message body")
 	m.Marshal(body)

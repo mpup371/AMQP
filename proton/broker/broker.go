@@ -36,27 +36,35 @@ func main() {
 // Listens for connections and starts a proton.Engine for each one.
 func (b *broker) run() error {
 	listener, err := net.Listen("tcp", *addr)
+
 	if err != nil {
 		return err
 	}
+
 	defer listener.Close()
 	logger.Printf("broker", "Listening on %s\n", listener.Addr())
 	for {
 		conn, err := listener.Accept()
+
 		if err != nil {
 			logger.Printf("broker", "Accept error: %v", err)
 			continue
 		}
+
 		adapter := proton.NewMessagingAdapter(newHandler(&b.queues))
 		// We want to accept messages when they are enqueued, not just when they
 		// are received, so we turn off auto-accept and prefetch by the adapter.
 		adapter.Prefetch = 0
 		adapter.AutoAccept = false
+		adapter.AutoOpen = true
+		adapter.AutoSettle = true
 		engine, err := proton.NewEngine(conn, adapter)
+
 		if err != nil {
 			logger.Printf("broker", "Connection error: %v", err)
 			continue
 		}
+
 		engine.Server() // Enable server-side protocol negotiation.
 		logger.Printf("broker", "Accepted connection %s", engine)
 
@@ -73,6 +81,7 @@ func (b *broker) run() error {
 // goroutine and other goroutines sending and receiving messages.
 type handler struct {
 	queues *queues
+	q      *queue // link Source/Target
 }
 
 func newHandler(queues *queues) *handler {
@@ -95,40 +104,46 @@ func logEvent(t proton.MessagingEvent, e proton.Event) {
 // HandleMessagingEvent handles an event, called in the handler goroutine.
 func (h *handler) HandleMessagingEvent(t proton.MessagingEvent, e proton.Event) {
 	switch t {
-
 	case proton.MStart:
-		logger.Debugf("event", "type=%v", t)
-
+		logEvent(t, e)
 	case proton.MLinkOpening:
-		logger.Debugf("event", "type=%v", t)
+		logEvent(t, e)
 		if e.Link().IsReceiver() {
+			addr := e.Link().RemoteTarget().Address()
+			logger.Debugf("broker", "push message to %s", addr)
+			h.q = h.queues.Get(addr)
 			e.Link().Flow(1) // Give credit to fill the buffer to capacity.
 		} else {
+			addr := e.Link().RemoteSource().Address()
+			logger.Debugf("broker", "pull message from %s", addr)
+			h.q = h.queues.Get(addr)
 			h.sendMsg(e.Link())
 		}
-
 	case proton.MLinkClosed:
-		logger.Debugf("event", "type=%v", t)
-
+		logEvent(t, e)
 	case proton.MSendable:
-		logger.Debugf("event", "type=%v", t)
-
+		logEvent(t, e)
 	case proton.MMessage:
-		logger.Debugf("event", "type=%v", t)
+		logEvent(t, e)
 		h.recvMsg(e)
-
+	case proton.MAccepted:
+		logEvent(t, e)
+		n := h.q.Pop()
+		logger.Printf("sendMsg", "message sent from  %v(%d): accepted", addr, n)
+	//AutoSettle suffisant
+	// case proton.MSettled:
+	// 	logEvent(t, e)
+	// 	e.Delivery().Settle()
 	default:
-		logger.Debugf("event", "type=%v", t)
+		logEvent(t, e)
 	}
 }
 
 // startReceiver creates a receiver and a goroutine for its run() method.
 func (h *handler) recvMsg(e proton.Event) {
-	addr := e.Link().RemoteTarget().Address()
-	logger.Debugf("broker", "push message to %s", addr)
-	q := h.queues.Get(addr)
+
 	if msg, err := e.Delivery().Message(); err == nil {
-		n := q.Add(msg)
+		n := h.q.Add(msg)
 		logger.Printf("broker", "message queued in %v(%d)", addr, n)
 		e.Delivery().Accept() // Accept the delivery
 	} else {
@@ -139,18 +154,14 @@ func (h *handler) recvMsg(e proton.Event) {
 
 func (h *handler) sendMsg(sender proton.Link) {
 	logger.Debugf("sendMsg", "sending on link %v", sender)
-	addr := sender.RemoteSource().Address()
-	logger.Debugf("broker", "pull message from %s", addr)
-	q := h.queues.Get(addr)
-	msg := q.Peek()
-	for ; msg == nil; msg = q.Peek() {
+	msg := h.q.Peek()
+
+	for ; msg == nil; msg = h.q.Peek() {
 		time.Sleep(1 * time.Second)
 	}
-	if delivery, err := sender.Send(msg); err == nil {
+
+	if _, err := sender.Send(msg); err == nil {
 		logger.Debugf("sendMsg", "msg=%#v", msg)
-		logger.Debugf("sendMsg", "delivery=%v", delivery.RemoteState())
-		n := q.Pop()
-		logger.Printf("sendMsg", "message sent from  %v(%d)", addr, n)
 	} else {
 		logger.Printf("sendMsg", "error: %v", err)
 	}

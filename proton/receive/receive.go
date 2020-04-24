@@ -30,10 +30,10 @@ func main() {
 	fatalIf(err)
 
 	adapter := proton.NewMessagingAdapter(&handler{topic})
-	// adapter.AutoSettle = false
 	adapter.AutoAccept = false
-	// adapter.AutoOpen = false
+	adapter.PeerCloseError = true
 	adapter.Prefetch = 0
+
 	engine, err := proton.NewEngine(connection, adapter)
 	fatalIf(err)
 	logger.Printf("main()", "Accepted %v", engine)

@@ -78,6 +78,8 @@ func main() {
 	fatalIf(err)
 
 	adapter := proton.NewMessagingAdapter(&handler{topic})
+	adapter.AutoSettle = false
+	adapter.PeerCloseError = true
 	engine, err := proton.NewEngine(connection, adapter)
 	fatalIf(err)
 	logger.Printf("main()", "Accepted connection %v", engine)
