@@ -1,11 +1,9 @@
 package main
 
 import (
-	"fmt"
 	"jf/AMQP/agt-proton/util"
 	"jf/AMQP/logger"
 
-	"qpid.apache.org/amqp"
 	"qpid.apache.org/proton"
 )
 
@@ -93,9 +91,7 @@ func (h *handler) HandleMessagingEvent(t proton.MessagingEvent, e proton.Event) 
 
 func sendMsg(sender proton.Link) error {
 	logger.Debugf("sendMsg", "sending on link %v", sender)
-	m := amqp.NewMessage()
-	body := fmt.Sprintf("message body")
-	m.Marshal(body)
+	m := newMessage()
 	delivery, err := sender.Send(m)
 	if err == nil {
 		delivery.Settle()
