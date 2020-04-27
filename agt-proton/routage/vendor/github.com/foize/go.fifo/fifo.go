@@ -43,7 +43,8 @@ func NewQueue() (q Queue) {
 
 // addChunk will allocate new chunks depending on actuel queue size
 func (q *Queue) addChunk() {
-	if q.count >= 2*q.curChunkSize {
+	if q.count >= 2*q.curChunkSize ||
+		q.count < q.curChunkSize/2 {
 		q.curChunkSize = q.count
 	}
 	q.tail.next = newChunk(q.curChunkSize)

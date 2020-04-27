@@ -19,6 +19,9 @@ voir comment gérer les timeout ici:
 func (h *handler) HandleMessagingEvent(t proton.MessagingEvent, e proton.Event) {
 	util.LogEvent(t, e)
 	switch t {
+	case proton.MLinkOpening:
+		logger.Debugf("broker", "RemoteSndSettleMode=%v, RemoteRcvSettleMode=%v", e.Link().RemoteSndSettleMode(), e.Link().RemoteRcvSettleMode())
+
 	case proton.MLinkOpened:
 		if e.Link().IsReceiver() {
 			addr := e.Link().RemoteTarget().Address()
@@ -41,7 +44,7 @@ func (h *handler) HandleMessagingEvent(t proton.MessagingEvent, e proton.Event) 
 	case proton.MAccepted:
 		if h.q != nil {
 			n := h.q.Pop()
-			logger.Printf("sendMsg", "message sent from  %s(%d): accepted", addr, n)
+			logger.Printf("sendMsg", "message sent from %s(%d): accepted", addr, n)
 		}
 	}
 }
@@ -51,11 +54,14 @@ func (h *handler) recvMsg(e proton.Event) {
 
 	if msg, err := e.Delivery().Message(); err == nil {
 		n := h.q.Add(msg)
-		logger.Printf("broker", "message queued in %s(%d)", addr, n)
-		e.Delivery().Accept() // Accept the delivery
+		logger.Printf("broker", "message queued in %s(%d)", *addr, n)
+		logger.Debugf("broker", "Delivery settled=%v", e.Delivery().Settled())
+		if !e.Delivery().Settled() {
+			e.Delivery().Accept() // Accept the delivery
+		}
 	} else {
 		logger.Printf("broker", "error reading message: %v", err)
-		e.Delivery().Release(true) // Accept the delivery
+		e.Delivery().Release(true)
 	}
 }
 

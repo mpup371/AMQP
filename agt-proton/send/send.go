@@ -50,9 +50,11 @@ package main
 
 import (
 	"flag"
+	"fmt"
 	"jf/AMQP/logger"
 	"log"
 	"net"
+	"net/url"
 	"os"
 	"strings"
 
@@ -63,22 +65,25 @@ import (
 func main() {
 	flag.Parse()
 
-	if len(flag.Args()) == 0 {
-		logger.Printf("main()", "No URL provided")
+	if len(flag.Args()) != 2 {
+		fmt.Printf("send clef fichier")
 		os.Exit(1)
 	}
 
-	urlStr := flag.Args()[0]
-	logger.Printf("main()", "Connecting to %s", urlStr)
-	url, err := amqp.ParseURL(urlStr)
+	url, err := amqp.ParseURL("amqp://localhost:5672/routage")
 	fatalIf(err)
+	connect(url)
+}
+
+func connect(url *url.URL) {
+	logger.Printf("main()", "Connecting to %v", url)
 	connection, err := net.Dial("tcp", url.Host) // NOTE: Dial takes just the Host part of the URL
 	fatalIf(err)
 	topic := strings.TrimPrefix(url.Path, "/")
 	fatalIf(err)
 
 	adapter := proton.NewMessagingAdapter(&handler{topic})
-	adapter.AutoSettle = false
+	adapter.AutoSettle = true //TODO: timeout et retry
 	adapter.PeerCloseError = true
 	engine, err := proton.NewEngine(connection, adapter)
 	fatalIf(err)

@@ -40,7 +40,7 @@ func (h *handler) HandleMessagingEvent(t proton.MessagingEvent, e proton.Event) 
 		logger.Debugf("handler", "session: state=%v", e.Session().State())
 		sender := e.Session().Sender("sender")
 		logger.Debugf("handler", "sender: state=%v", sender.State())
-		sender.SetSndSettleMode(proton.SndUnsettled)
+		sender.SetSndSettleMode(proton.SndSettled)
 		sender.Target().SetAddress(h.topic)
 		// sender.Target().SetTimeout(5 * time.Second) pas très utile
 		sender.Open()
@@ -52,6 +52,7 @@ func (h *handler) HandleMessagingEvent(t proton.MessagingEvent, e proton.Event) 
 	case proton.MLinkOpened:
 		logger.Debugf("handler", "sender: state=%v", e.Link().State())
 		sendMsg(e.Link())
+		e.Link().Close()
 		/*
 			[0x2438220]: AMQP:FRAME:0 -> @transfer(20) [handle=0, delivery-id=0, delivery-tag=b"1", message-format=0] (25) "\x00SpE\x00SsE\x00Sw\xa1\x0cmessage body"
 			[0x2438220]: AMQP:FRAME:0 <- @flow(19) [next-incoming-id=1, incoming-window=2147483647, next-outgoing-id=0, outgoing-window=2147483647, handle=0, delivery-count=1, link-credit=100, drain=false]
@@ -71,20 +72,18 @@ func (h *handler) HandleMessagingEvent(t proton.MessagingEvent, e proton.Event) 
 			[0x146d4b0]: AMQP:FRAME:0 <- @close(24) []
 			[0x146d4b0]:   IO:FRAME:  <- EOS
 		*/
-	case proton.MSendable:
-		logger.Debugf("handler", "Sendable, credit=%d", e.Link().Credit())
-		/*
-			[0xe31280]: AMQP:FRAME:0 -> @transfer(20) [handle=0, delivery-id=0, delivery-tag=b"1", message-format=0, settled=true] (25) "\x00SpE\x00SsE\x00Sw\xa1\x0cmessage body"
-		*/
+	// case proton.MSendable:
+	// logger.Debugf("handler", "Sendable, credit=%d", e.Link().Credit())
+	/*
+		[0xe31280]: AMQP:FRAME:0 -> @transfer(20) [handle=0, delivery-id=0, delivery-tag=b"1", message-format=0, settled=true] (25) "\x00SpE\x00SsE\x00Sw\xa1\x0cmessage body"
+	*/
 	case proton.MConnectionClosed:
 		logger.Debugf("handler", "connection closed: %v", e.Connection().String())
-		/*
-			[0xd5c490]:   IO:FRAME:  <- EOS
-		*/
+	/*
+		[0xd5c490]:   IO:FRAME:  <- EOS
+	*/
 	case proton.MSettled:
 		logger.Debugf("handler", "Delivery settled: settled=%v", e.Delivery().Settled())
-		//TODO répéter si non accepté ou timeout
-		e.Link().Close()
 		/*
 			[0x146d4b0]: AMQP:FRAME:0 -> @detach(22) [handle=0, closed=true]
 			[0x146d4b0]: AMQP:FRAME:0 <- @detach(22) [handle=0, closed=true]
@@ -98,8 +97,8 @@ func sendMsg(sender proton.Link) error {
 	body := fmt.Sprintf("message body")
 	m.Marshal(body)
 	delivery, err := sender.Send(m)
-	logger.Debugf("handler", "Delivery settled: settled=%v", delivery.Settled())
 	if err == nil {
+		delivery.Settle()
 		logger.Debugf("sendMsg", "%#v", m)
 		logger.Printf("sendMsg", "message sent")
 	} else {
