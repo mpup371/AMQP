@@ -1,15 +1,7 @@
 // Created by Yaz Saito on 06/15/12.
 // Modified by Geert-Johan Riemer, Foize B.V.
 
-// TODO:
-// - travis CI
-// - maybe add method (*Queue).Peek()
-
 package fifo
-
-import (
-	"sync"
-)
 
 const initChunkSize uint = 64
 
@@ -34,10 +26,9 @@ func newChunk(size uint) *chunk {
 
 // Queue is a fifo queue
 type Queue struct {
-	head, tail   *chunk     // chunk head and tail
-	count        uint       // total amount of items in the queue
-	curChunkSize uint       // current chunk size for new allocation
-	lock         sync.Mutex // synchronisation lock
+	head, tail   *chunk // chunk head and tail
+	count        uint   // total amount of items in the queue
+	curChunkSize uint   // current chunk size for new allocation
 }
 
 // NewQueue creates a new and empty *fifo.Queue
@@ -61,20 +52,11 @@ func (q *Queue) addChunk() {
 
 // Len Return the number of items in the queue
 func (q *Queue) Len() (length uint) {
-	// locking to make Queue thread-safe
-	q.lock.Lock()
-	defer q.lock.Unlock()
-
-	// copy q.count and return length
-	length = q.count
-	return length
+	return q.count
 }
 
 // Add an item to the end of the queue
 func (q *Queue) Add(item interface{}) uint {
-	// locking to make Queue thread-safe
-	q.lock.Lock()
-	defer q.lock.Unlock()
 
 	// check if item is valid
 	if item == nil {
@@ -96,9 +78,6 @@ func (q *Queue) Add(item interface{}) uint {
 // Next remove the item at the head of the queue and return it.
 // Returns nil when there are no items left in queue.
 func (q *Queue) Next() (item interface{}, length uint) {
-	// locking to make Queue thread-safe
-	q.lock.Lock()
-	defer q.lock.Unlock()
 
 	// Return nil if there are no items to return
 	if q.count == 0 {
@@ -139,9 +118,6 @@ func (q *Queue) Next() (item interface{}, length uint) {
 // Peek returns the first item in the queue without removing it
 // Returns nil when there are no items left in queue.
 func (q *Queue) Peek() (item interface{}) {
-	// locking to make Queue thread-safe
-	q.lock.Lock()
-	defer q.lock.Unlock()
 
 	// Return nil if there are no items to return
 	if q.count == 0 {
@@ -176,9 +152,6 @@ func (q *Queue) Peek() (item interface{}) {
 // Pop remove the item at the head of the queue wihtout return it.
 // Returns nil when there are no items left in queue.
 func (q *Queue) Pop() uint {
-	// locking to make Queue thread-safe
-	q.lock.Lock()
-	defer q.lock.Unlock()
 
 	// Return nil if there are no items to return
 	if q.count == 0 {

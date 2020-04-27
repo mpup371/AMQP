@@ -9,22 +9,36 @@ import (
 )
 
 type queue struct {
-	fifo.Queue
-	creationDate int64
-	lastAccess   int64
+	fq           fifo.Queue
+	mu           sync.Mutex
+	creationDate time.Time
+	lastRead     time.Time
+	lastWrite    time.Time
 }
 
-//TODO remonter lock ici
+func (q *queue) Len() uint {
+	q.mu.Lock()
+	defer q.mu.Unlock()
+	return q.fq.Len()
+}
 
 func (q *queue) Add(m amqp.Message) uint {
-	return q.Add(m)
+	q.mu.Lock()
+	defer q.mu.Unlock()
+	q.lastWrite = time.Now()
+	return q.fq.Add(m)
 }
 func (q *queue) Pop() uint {
-	return q.Pop()
+	q.mu.Lock()
+	defer q.mu.Unlock()
+	return q.fq.Pop()
 }
 
 func (q *queue) Peek() amqp.Message {
-	m := q.Peek()
+	q.mu.Lock()
+	defer q.mu.Unlock()
+	q.lastRead = time.Now()
+	m := q.fq.Peek()
 	if m == nil {
 		return nil
 	}
@@ -33,8 +47,8 @@ func (q *queue) Peek() amqp.Message {
 
 // Concurrent-safe map of queues.
 type queues struct {
-	m    map[string]*queue
-	lock sync.Mutex
+	m  map[string]*queue
+	mu sync.Mutex
 }
 
 func makeQueues() queues {
@@ -43,34 +57,37 @@ func makeQueues() queues {
 
 // Create a queue if not found.
 func (qs *queues) Get(name string) *queue {
-	qs.lock.Lock()
-	defer qs.lock.Unlock()
+	qs.mu.Lock()
+	defer qs.mu.Unlock()
 	if q, ok := qs.m[name]; ok {
 		return q
 	}
-	q := queue{fifo.NewQueue(), creationDate: time.Now().Unix()}
+	q := queue{fifo.NewQueue(), sync.Mutex{}, time.Now(), time.Time{}, time.Time{}}
 	qs.m[name] = &q
 	return &q
 }
 
 func (qs *queues) Len() int {
-	qs.lock.Lock()
-	defer qs.lock.Unlock()
+	qs.mu.Lock()
+	defer qs.mu.Unlock()
 	return len(qs.m)
 }
 
 type Qinfo struct {
-	Name string
-	Size uint
+	Name      string
+	Size      uint
+	Creation  time.Time
+	LastRead  time.Time
+	LastWrite time.Time
 }
 
 func (qs *queues) Infos() (l []Qinfo) {
-	qs.lock.Lock()
-	defer qs.lock.Unlock()
+	qs.mu.Lock()
+	defer qs.mu.Unlock()
 	l = make([]Qinfo, 0, len(qs.m))
 
 	for name, q := range qs.m {
-		l = append(l, Qinfo{name, (*fifo.Queue)(q).Len()})
+		l = append(l, Qinfo{name, q.Len(), q.creationDate, q.lastRead, q.lastWrite})
 	}
 	return l
 }

@@ -61,8 +61,8 @@ func (h *handler) recvMsg(e proton.Event) {
 
 func (h *handler) sendMsg(sender proton.Link) {
 	logger.Debugf("sendMsg", "sending on link %v", sender)
-	msg := h.q.Peek()
 
+	msg := h.q.Peek()
 	for ; msg == nil; msg = h.q.Peek() {
 		time.Sleep(1 * time.Second)
 	}
