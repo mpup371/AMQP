@@ -46,18 +46,7 @@ func (h *handler) HandleMessagingEvent(t proton.MessagingEvent, e proton.Event) 
 	case proton.MLinkOpened:
 		logger.Debugf("handler", "receiver: state=%v", e.Link().State())
 	case proton.MMessage:
-		if msg, err := e.Delivery().Message(); err == nil {
-			logger.Printf("handler", "Message: body=%v", msg.Body())
-			if err := persist(msg); err == nil {
-				e.Delivery().Accept()
-			} else {
-				logger.Debugf("handler", "Error persist attributes: %v", err)
-				e.Delivery().Reject()
-			}
-		} else {
-			logger.Printf("handler", "Error: %v", err)
-		}
-		e.Link().Close()
+		route(e.Delivery())
 	case proton.MLinkClosed:
 		e.Session().Close()
 	case proton.MSessionClosed:
@@ -68,25 +57,59 @@ func (h *handler) HandleMessagingEvent(t proton.MessagingEvent, e proton.Event) 
 		logger.Debugf("handler", "Disconnected: %v (%v)", e.Connection(), e.Connection().Error())
 	}
 }
+func route(delivery proton.Delivery) {
+	msg, err := delivery.Message()
+	if err != nil {
+		logger.Printf("route", "Error reading message: %v", err)
+		delivery.Reject()
+		return
+	}
+	logger.Printf("route", "Message: body=%v", msg.Body())
+	attr, err := persist(msg)
+	if err != nil {
+		logger.Printf("route", "Error persisting attributes: %v", err)
+		delivery.Reject()
+		return
+	}
+	to, ok := attr.Get(TO)
+	if !ok {
+		logger.Printf("route", "recipient not found")
+		delivery.Reject()
+		return
+	}
+
+	user, host, err := attributes.Split(to, "@")
+	if err != nil {
+		logger.Printf("route", "recipient not readable: %v", err)
+		delivery.Reject()
+		return
+	}
+	send(attr, user, host)
+	delivery.Accept()
+}
+
+func send(attr attributes.Attributes, user, host string) {
+	logger.Debugf("send", "sending message to %s@%s", user, host)
+}
 
 //TODO rajouter la taille du body dans le message (delivery ?)
-func persist(msg amqp.Message) error {
+func persist(msg amqp.Message) (attr attributes.Attributes, err error) {
 	var buf []byte = make([]byte, 0)
 	msg.Unmarshal(&buf)
 	logger.Debugf("persist", "buffer=%s", buf)
-	attr, err := attributes.Unmarshal(buf)
-	logger.Debugf("persist", "map=%s", attr.Marshall())
+	attr, err = attributes.Unmarshal(buf)
+	logger.Debugf("persist", "attr=\n%s", attr.Marshall())
 	if err != nil {
 		logger.Debugf("persist", "Error reading attributes: %v", err)
-		return err
+		return
 	}
-
-	if path, ok := attr.Get("agt.routage.file"); ok {
-		logger.Debugf("persist", "path=%s", path)
-		return attributes.SetAttributes(path, attr)
+	path, ok := attr.Get(FILE)
+	if !ok {
+		logger.Debugf("persist", "Error : file path not found in attributes")
+		err = fmt.Errorf("file path not found in attributes")
+		return
 	}
-
-	logger.Debugf("persist", "Error : path not found in attributes: %v", attr)
-	return fmt.Errorf("path not found in attributes")
-
+	logger.Printf("persist", "write attributes to %s", path)
+	err = attributes.SetAttributes(path, attr)
+	return
 }

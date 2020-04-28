@@ -6,44 +6,54 @@ import (
 	"net"
 	"net/url"
 	"strings"
+	"time"
 
 	"qpid.apache.org/amqp"
 	"qpid.apache.org/proton"
 )
 
-func main() {
+const (
+	TO   = "user.agt.routage.to"
+	FROM = "user.agt.routage.from"
+	FILE = "user.agt.routage.file"
+)
 
-	if url, err := amqp.ParseURL("amqp://localhost:5672/routage"); err != nil {
+var mandatoryFields = []string{TO, FILE}
+
+func main() {
+	url, err := amqp.ParseURL("amqp://localhost:5672/routage")
+	if err != nil {
 		log.Fatal(err)
-	} else if err := connect(url); err != nil {
-		log.Fatal(err)
+	}
+	for {
+		if err := connect(url); err != nil {
+			logger.Printf("main()", "Error: %v", err)
+			time.Sleep(10 * time.Second)
+		}
 	}
 }
 
 func connect(url *url.URL) error {
 	logger.Printf("main()", "Connecting to %s", url)
-	connection, err := net.Dial("tcp", url.Host) // NOTE: Dial takes just the Host part of the URL
-	if err != nil {
-		return err
-	}
 
 	topic := strings.TrimPrefix(url.Path, "/")
-	if err != nil {
-		return err
-	}
 
 	adapter := proton.NewMessagingAdapter(&handler{topic})
 	adapter.AutoAccept = false
 	adapter.PeerCloseError = true
 	adapter.Prefetch = 0
 
+	connection, err := net.Dial("tcp", url.Host) // NOTE: Dial takes just the Host part of the URL
+	if err != nil {
+		logger.Debugf("connect", "Error connecting to %v: %v", url, err)
+		return err
+	}
 	engine, err := proton.NewEngine(connection, adapter)
+	logger.Printf("main()", "Accepted %v", engine)
+	err = engine.Run()
+	logger.Debugf("connect", "Error engine =%v", engine.Error())
 	if err != nil {
 		return err
 	}
-
-	logger.Printf("main()", "Accepted %v", engine)
-	engine.Run()
-	logger.Printf("main()", "Terminated %s (%v)", engine, engine.Error())
 	return nil
 }

@@ -12,15 +12,15 @@ import (
 func mockMessage() amqp.Message {
 	m := amqp.NewMessage()
 	attr := attributes.NewAttributes()
-	attr.Add("agt.routage.from", "moi@mamaison")
-	attr.Add("agt.routage.to", "toi@tamaison")
-	attr.Add("agt.routage.file", "/tmp/date")
-	attr.Add("agt.data.bdpe.numero", "123456")
+	attr.Add("user.agt.routage.from", "moi@mamaison")
+	attr.Add("user.agt.routage.to", "toi@tamaison")
+	attr.Add("user.agt.routage.file", "/tmp/date")
+	attr.Add("user.agt.data.bdpe.numero", "123456")
 	m.SetBody(attr.Marshall())
 	return m
 }
 
-// lancer le broker d'abord
+// lancer le broker et le routage d'abord
 func TestSend(t *testing.T) {
 	makeMessage = mockMessage
 	exec.Command("sh", "-c", "date > /tmp/date").Run()

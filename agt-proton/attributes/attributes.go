@@ -3,7 +3,7 @@ package attributes
 import (
 	"bufio"
 	"bytes"
-	"io"
+	"fmt"
 	"jf/AMQP/logger"
 	"strings"
 
@@ -38,21 +38,19 @@ func (attr Attributes) Marshall() []byte {
 
 func Unmarshal(body []byte) (Attributes, error) {
 	attr := NewAttributes()
-	reader := bufio.NewReader(bytes.NewBuffer(body))
-
-	for line, err := reader.ReadString('\n'); err == nil; line, err = reader.ReadString('\n') {
-		logger.Debugf("attributes", "line=%v, err=%v", line, err)
-		if err != nil && err != io.EOF {
-			return attr, err
-		}
-		tuple := strings.Split(line, "=")
-		if len(tuple) != 2 {
-			logger.Printf("attributes", "Error reading attribute: %s", line)
+	scanner := bufio.NewScanner(bytes.NewBuffer(body))
+	for scanner.Scan() {
+		line := scanner.Text()
+		logger.Debugf("Unmarshal", "line=%v", line)
+		k, v, err := Split(line, "=")
+		if err != nil {
+			logger.Printf("Unmarshal", "Unmarshal attributes: %v", err)
 			continue
 		}
-		attr.Add(tuple[0], tuple[1])
+		attr.Add(k, v)
+
 	}
-	return attr, nil
+	return attr, scanner.Err()
 }
 
 func SetAttributes(path string, attr Attributes) error {
@@ -76,6 +74,17 @@ func GetAttributes(path string) (attr Attributes, err error) {
 		} else {
 			logger.Printf("xattr", "error reading attribute %s on file %s: %v", k, path, e)
 		}
+	}
+	return
+}
+
+func Split(line, sep string) (s1, s2 string, err error) {
+	tuple := strings.Split(line, sep)
+	if len(tuple) == 2 {
+		s1 = tuple[0]
+		s2 = tuple[1]
+	} else {
+		err = fmt.Errorf("Error reading attribute: %s", line)
 	}
 	return
 }
