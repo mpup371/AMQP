@@ -20,8 +20,9 @@ func (h *handler) HandleMessagingEvent(t proton.MessagingEvent, e proton.Event) 
 	util.LogEvent(t, e)
 	switch t {
 	case proton.MLinkOpening:
-		logger.Debugf("broker", "RemoteSndSettleMode=%v, RemoteRcvSettleMode=%v", e.Link().RemoteSndSettleMode(), e.Link().RemoteRcvSettleMode())
-
+		logger.Debugf("broker", "RemoteSndSettleMode=%v, RemoteRcvSettleMode=%v, State=%v",
+			e.Link().RemoteSndSettleMode(), e.Link().RemoteRcvSettleMode(),
+			e.Link().State())
 	case proton.MLinkOpened:
 		if e.Link().IsReceiver() {
 			addr := e.Link().RemoteTarget().Address()

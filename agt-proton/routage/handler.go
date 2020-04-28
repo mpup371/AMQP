@@ -42,9 +42,14 @@ func (h *handler) HandleMessagingEvent(t proton.MessagingEvent, e proton.Event) 
 		receiver.Source().SetAddress(h.topic)
 		receiver.Open()
 	case proton.MLinkOpening:
-		e.Link().Flow(1)
+		logger.Debugf("handler", "Link opening: name=%s, source=%s",
+			e.Link().Name(),
+			e.Link().Source().Address())
+		if e.Link().Source().Address() == h.topic {
+			e.Link().Flow(1)
+		}
 	case proton.MLinkOpened:
-		logger.Debugf("handler", "receiver: state=%v", e.Link().State())
+		logger.Debugf("handler", "link opened: state=%v", e.Link().State())
 	case proton.MMessage:
 		route(e.Delivery())
 	case proton.MLinkClosed:
@@ -57,6 +62,8 @@ func (h *handler) HandleMessagingEvent(t proton.MessagingEvent, e proton.Event) 
 		logger.Debugf("handler", "Disconnected: %v (%v)", e.Connection(), e.Connection().Error())
 	}
 }
+
+//TODO: si mesg pourri release au lieu de reject pour que le broker supprime le msg
 func route(delivery proton.Delivery) {
 	msg, err := delivery.Message()
 	if err != nil {
@@ -78,23 +85,27 @@ func route(delivery proton.Delivery) {
 		return
 	}
 
-	user, host, err := attributes.Split(to, "@")
+	_, host, err := attributes.Split(to, "@")
 	if err != nil {
 		logger.Printf("route", "recipient not readable: %v", err)
 		delivery.Reject()
 		return
 	}
-	send(attr, user, host)
+	send(delivery.Link().Session(), attr, host)
 	delivery.Accept()
 }
 
-func send(attr attributes.Attributes, user, host string) {
-	logger.Debugf("send", "sending message to %s@%s", user, host)
+func send(session proton.Session, attr attributes.Attributes, host string) {
+	logger.Debugf("send", "sending message to %s", host)
+	// sender := session.Sender("sender")
+	// logger.Debugf("handler", "sender: state=%v", sender.State())
+	// sender.SetSndSettleMode(proton.SndSettled)
+	// sender.Target().SetAddress(host)
+	// sender.Open()
 }
 
-//TODO rajouter la taille du body dans le message (delivery ?)
 func persist(msg amqp.Message) (attr attributes.Attributes, err error) {
-	var buf []byte = make([]byte, 0)
+	var buf []byte = make([]byte, 0, 1024)
 	msg.Unmarshal(&buf)
 	logger.Debugf("persist", "buffer=%s", buf)
 	attr, err = attributes.Unmarshal(buf)

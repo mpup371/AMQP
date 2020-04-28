@@ -65,12 +65,12 @@ import (
 func main() {
 	flag.Parse()
 
-	if len(flag.Args()) != 2 {
-		fmt.Printf("send clef fichier")
+	if len(flag.Args()) != 1 {
+		fmt.Printf("send url")
 		os.Exit(1)
 	}
 
-	if url, err := amqp.ParseURL("amqp://localhost:5672/routage"); err != nil {
+	if url, err := amqp.ParseURL(flag.Arg(0)); err != nil {
 		log.Fatal(err)
 	} else if err := connect(url); err != nil {
 		log.Fatal(err)

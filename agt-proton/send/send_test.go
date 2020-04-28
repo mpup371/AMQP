@@ -2,6 +2,7 @@ package main
 
 import (
 	"jf/AMQP/agt-proton/attributes"
+	"os"
 	"os/exec"
 	"testing"
 	"time"
@@ -23,6 +24,7 @@ func mockMessage() amqp.Message {
 // lancer le broker et le routage d'abord
 func TestSend(t *testing.T) {
 	makeMessage = mockMessage
+	os.Remove("/tmp/date")
 	exec.Command("sh", "-c", "date > /tmp/date").Run()
 	url, _ := amqp.ParseURL("amqp://localhost:5672/routage")
 	if err := connect(url); err != nil {
