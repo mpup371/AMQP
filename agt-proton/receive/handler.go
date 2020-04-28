@@ -29,7 +29,11 @@ func (h *handler) HandleMessagingEvent(t proton.MessagingEvent, e proton.Event) 
 		*/
 	case proton.MConnectionOpened:
 		session, err := e.Connection().Session()
-		fatalIf(err)
+		if err != nil {
+			logger.Printf("handler", "error opening session: %v", err)
+			e.Connection().Close()
+			break
+		}
 		logger.Debugf("handler", "session: state=%v", session.State())
 		session.Open()
 		/*

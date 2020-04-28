@@ -1,12 +1,10 @@
 package main
 
 import (
-	"flag"
 	"jf/AMQP/logger"
 	"log"
 	"net"
 	"net/url"
-	"os"
 	"strings"
 
 	"qpid.apache.org/amqp"
@@ -14,15 +12,8 @@ import (
 )
 
 func main() {
-	flag.Parse()
 
-	if len(flag.Args()) == 0 {
-		logger.Printf("main()", "No URL provided")
-		os.Exit(1)
-	}
-
-	urlStr := flag.Args()[0]
-	if url, err := amqp.ParseURL(urlStr); err != nil {
+	if url, err := amqp.ParseURL("amqp://localhost:5672/routage"); err != nil {
 		log.Fatal(err)
 	} else if err := connect(url); err != nil {
 		log.Fatal(err)
