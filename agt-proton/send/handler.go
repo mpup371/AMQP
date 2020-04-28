@@ -4,8 +4,16 @@ import (
 	"jf/AMQP/agt-proton/util"
 	"jf/AMQP/logger"
 
+	"qpid.apache.org/amqp"
 	"qpid.apache.org/proton"
 )
+
+// for testing purposes
+var makeMessage func() amqp.Message
+
+func init() {
+	makeMessage = newMessage
+}
 
 type handler struct {
 	topic string
@@ -26,7 +34,11 @@ func (h *handler) HandleMessagingEvent(t proton.MessagingEvent, e proton.Event) 
 		*/
 	case proton.MConnectionOpened:
 		session, err := e.Connection().Session()
-		fatalIf(err)
+		if err != nil {
+			logger.Printf("handler", "error opening session: %v", err)
+			e.Connection().Close()
+			break
+		}
 		logger.Debugf("handler", "session: state=%v", session.State())
 		session.Open()
 		/*
@@ -91,7 +103,7 @@ func (h *handler) HandleMessagingEvent(t proton.MessagingEvent, e proton.Event) 
 
 func sendMsg(sender proton.Link) error {
 	logger.Debugf("sendMsg", "sending on link %v", sender)
-	m := newMessage()
+	m := makeMessage()
 	delivery, err := sender.Send(m)
 	if err == nil {
 		delivery.Settle()

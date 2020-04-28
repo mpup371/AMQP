@@ -70,30 +70,36 @@ func main() {
 		os.Exit(1)
 	}
 
-	url, err := amqp.ParseURL("amqp://localhost:5672/routage")
-	fatalIf(err)
-	connect(url)
+	if url, err := amqp.ParseURL("amqp://localhost:5672/routage"); err != nil {
+		log.Fatal(err)
+	} else if err := connect(url); err != nil {
+		log.Fatal(err)
+	}
 }
 
-func connect(url *url.URL) {
+func connect(url *url.URL) error {
 	logger.Printf("main()", "Connecting to %v", url)
+
 	connection, err := net.Dial("tcp", url.Host) // NOTE: Dial takes just the Host part of the URL
-	fatalIf(err)
+	if err != nil {
+		return err
+	}
+
 	topic := strings.TrimPrefix(url.Path, "/")
-	fatalIf(err)
+	if err != nil {
+		return err
+	}
 
 	adapter := proton.NewMessagingAdapter(&handler{topic})
 	adapter.AutoSettle = true //TODO: timeout et retry
 	adapter.PeerCloseError = true
 	engine, err := proton.NewEngine(connection, adapter)
-	fatalIf(err)
+	if err != nil {
+		return err
+	}
+
 	logger.Printf("main()", "Accepted connection %v", engine)
 	engine.Run()
 	logger.Printf("main()", "Terminated %s (%v)", engine, engine.Error())
-}
-
-func fatalIf(err error) {
-	if err != nil {
-		log.Fatal(err)
-	}
+	return nil
 }
