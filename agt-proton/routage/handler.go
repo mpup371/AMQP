@@ -14,7 +14,16 @@ import (
 )
 
 type handler struct {
-	topic string
+	topic   string
+	engine  *proton.Engine
+	session proton.Session
+	senders map[proton.Link]chan proton.MessagingEvent
+}
+
+func newHandler(topic string) *handler {
+	h := handler{topic: topic}
+	h.senders = make(map[proton.Link]chan proton.MessagingEvent)
+	return &h
 }
 
 func (h *handler) HandleMessagingEvent(t proton.MessagingEvent, e proton.Event) {
@@ -36,6 +45,7 @@ func (h *handler) HandleMessagingEvent(t proton.MessagingEvent, e proton.Event) 
 		logger.Debugf("handler", "session: state=%v", session.State())
 	case proton.MSessionOpened:
 		logger.Debugf("handler", "session: state=%v", e.Session().State())
+		h.session = e.Session()
 		receiver := e.Session().Receiver("receiver")
 		logger.Debugf("handler", "receiver: state=%v", receiver.State())
 		receiver.SetRcvSettleMode(proton.RcvFirst)
@@ -51,8 +61,22 @@ func (h *handler) HandleMessagingEvent(t proton.MessagingEvent, e proton.Event) 
 	case proton.MLinkOpened:
 		logger.Debugf("handler", "link opened: state=%v", e.Link().State())
 	case proton.MMessage:
-		route(e.Delivery())
+		attr := route(e.Delivery())
+		if attr != nil {
+			go h.dispatch(attr, make(chan proton.MessagingEvent))
+		}
+	case proton.MSendable:
+		if ch, ok := h.senders[e.Link()]; ok {
+			// ch <- t
+			close(ch)
+		} else {
+			logger.Printf("handler", "Sender not found: %s", e.Link().Name())
+		}
 	case proton.MLinkClosed:
+		if ch, ok := h.senders[e.Link()]; ok {
+			close(ch)
+			delete(h.senders, e.Link())
+		}
 		e.Session().Close()
 	case proton.MSessionClosed:
 		e.Connection().Close()
@@ -64,44 +88,30 @@ func (h *handler) HandleMessagingEvent(t proton.MessagingEvent, e proton.Event) 
 }
 
 //TODO: si mesg pourri release au lieu de reject pour que le broker supprime le msg
-func route(delivery proton.Delivery) {
+func route(delivery proton.Delivery) attributes.Attributes {
 	msg, err := delivery.Message()
 	if err != nil {
 		logger.Printf("route", "Error reading message: %v", err)
 		delivery.Reject()
-		return
+		return nil
 	}
 	logger.Printf("route", "Message: body=%v", msg.Body())
 	attr, err := persist(msg)
 	if err != nil {
 		logger.Printf("route", "Error persisting attributes: %v", err)
 		delivery.Reject()
-		return
+		return nil
 	}
-	to, ok := attr.Get(TO)
-	if !ok {
-		logger.Printf("route", "recipient not found")
+	if _, _, err := attr.GetRecipient(); err != nil {
+		logger.Printf("route", "recipient not found (%v)", err)
 		delivery.Reject()
-		return
 	}
 
-	_, host, err := attributes.Split(to, "@")
-	if err != nil {
-		logger.Printf("route", "recipient not readable: %v", err)
-		delivery.Reject()
-		return
-	}
-	send(delivery.Link().Session(), attr, host)
 	delivery.Accept()
-}
+	// il faut accepter avant de lancer les goroutines sinon on
+	// va relire le même message du broker
 
-func send(session proton.Session, attr attributes.Attributes, host string) {
-	logger.Debugf("send", "sending message to %s", host)
-	// sender := session.Sender("sender")
-	// logger.Debugf("handler", "sender: state=%v", sender.State())
-	// sender.SetSndSettleMode(proton.SndSettled)
-	// sender.Target().SetAddress(host)
-	// sender.Open()
+	return attr
 }
 
 func persist(msg amqp.Message) (attr attributes.Attributes, err error) {
@@ -114,8 +124,8 @@ func persist(msg amqp.Message) (attr attributes.Attributes, err error) {
 		logger.Debugf("persist", "Error reading attributes: %v", err)
 		return
 	}
-	path, ok := attr.Get(FILE)
-	if !ok {
+	path, err := attr.GetFile()
+	if err != nil {
 		logger.Debugf("persist", "Error : file path not found in attributes")
 		err = fmt.Errorf("file path not found in attributes")
 		return

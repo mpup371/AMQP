@@ -19,6 +19,7 @@ voir comment gérer les timeout ici:
 func (h *handler) HandleMessagingEvent(t proton.MessagingEvent, e proton.Event) {
 	util.LogEvent(t, e)
 	switch t {
+	// The peer initiates the opening of the link.
 	case proton.MLinkOpening:
 		logger.Debugf("broker", "RemoteSndSettleMode=%v, RemoteRcvSettleMode=%v, State=%v",
 			e.Link().RemoteSndSettleMode(), e.Link().RemoteRcvSettleMode(),

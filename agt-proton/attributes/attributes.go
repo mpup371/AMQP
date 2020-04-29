@@ -10,10 +10,16 @@ import (
 	"github.com/pkg/xattr"
 )
 
+const (
+	TO   = "user.agt.routage.to"
+	FROM = "user.agt.routage.from"
+	FILE = "user.agt.routage.file"
+)
+
 type Attributes map[string]string
 
 func NewAttributes() Attributes {
-	return make(Attributes, 0)
+	return make(Attributes)
 }
 
 func (attr *Attributes) Add(k, v string) {
@@ -87,4 +93,26 @@ func Split(line, sep string) (s1, s2 string, err error) {
 		err = fmt.Errorf("Error reading attribute: %s", line)
 	}
 	return
+}
+
+func (attr Attributes) GetRecipient() (user, host string, err error) {
+	to, ok := attr.Get(TO)
+	if !ok {
+		err = fmt.Errorf("No to: field in attributes")
+		return
+	}
+	user, host, err = Split(to, "@")
+	if err != nil {
+		err = fmt.Errorf("malformed recipient %v: %v", to, err)
+	}
+	return
+}
+
+func (attr Attributes) GetFile() (string, error) {
+	path, ok := attr.Get(FILE)
+	if !ok {
+		err := fmt.Errorf("path field not found")
+		return "", err
+	}
+	return path, nil
 }

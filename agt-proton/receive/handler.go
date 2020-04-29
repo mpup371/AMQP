@@ -52,13 +52,8 @@ func (h *handler) HandleMessagingEvent(t proton.MessagingEvent, e proton.Event) 
 			[0x1554220]: AMQP:FRAME:0 -> @attach(18) [name="receiver", handle=0, role=true, snd-settle-mode=2, rcv-settle-mode=0, source=@source(40) [durable=0, timeout=0, dynamic=false], target=@target(41) [durable=0, timeout=0, dynamic=false], initial-delivery-count=0, max-message-size=0]
 			[0x1554220]: AMQP:FRAME:0 <- @attach(18) [name="receiver", handle=0, role=false, snd-settle-mode=2, rcv-settle-mode=0, target=@target(41) [durable=0, timeout=0, dynamic=false], initial-delivery-count=0, max-message-size=0]
 		*/
-	case proton.MLinkOpening:
-		e.Link().Flow(1)
-		/*
-			[0x15ab220]: AMQP:FRAME:0 -> @flow(19) [next-incoming-id=0, incoming-window=2147483647, next-outgoing-id=0, outgoing-window=2147483647, handle=0, delivery-count=0, link-credit=1, drain=false]
-			[0x15ab220]: AMQP:FRAME:0 <- @transfer(20) [handle=0, delivery-id=0, delivery-tag=b"1", message-format=0] (25) "\x00SpE\x00SsE\x00Sw\xa1\x0cmessage body"
-		*/
 	case proton.MLinkOpened:
+		e.Link().Flow(1)
 		logger.Debugf("handler", "receiver: state=%v", e.Link().State())
 		/*
 			[0x24d3250]: AMQP:FRAME:0 -> @flow(19) [next-incoming-id=0, incoming-window=2147483647, next-outgoing-id=0, outgoing-window=2147483647, handle=0, delivery-count=0, link-credit=1, drain=false]

@@ -12,14 +12,6 @@ import (
 	"qpid.apache.org/proton"
 )
 
-const (
-	TO   = "user.agt.routage.to"
-	FROM = "user.agt.routage.from"
-	FILE = "user.agt.routage.file"
-)
-
-var mandatoryFields = []string{TO, FILE}
-
 func main() {
 	url, err := amqp.ParseURL("amqp://localhost:5672/routage")
 	if err != nil {
@@ -37,8 +29,8 @@ func connect(url *url.URL) error {
 	logger.Printf("main()", "Connecting to %s", url)
 
 	topic := strings.TrimPrefix(url.Path, "/")
-
-	adapter := proton.NewMessagingAdapter(&handler{topic})
+	handler := newHandler(topic)
+	adapter := proton.NewMessagingAdapter(handler)
 	adapter.AutoAccept = false
 	adapter.PeerCloseError = true
 	adapter.Prefetch = 0
@@ -50,6 +42,7 @@ func connect(url *url.URL) error {
 	}
 	engine, err := proton.NewEngine(connection, adapter)
 	logger.Printf("main()", "Accepted %v", engine)
+	handler.engine = engine
 	err = engine.Run()
 	logger.Debugf("connect", "Error engine =%v", engine.Error())
 	if err != nil {

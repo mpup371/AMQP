@@ -50,7 +50,7 @@ func (h *handler) HandleMessagingEvent(t proton.MessagingEvent, e proton.Event) 
 		logger.Debugf("handler", "session: state=%v", e.Session().State())
 		sender := e.Session().Sender("sender")
 		logger.Debugf("handler", "sender: state=%v", sender.State())
-		sender.SetSndSettleMode(proton.SndSettled)
+		sender.SetSndSettleMode(proton.SndSettled) //TODO unsettled + timeout et retrys
 		sender.Target().SetAddress(h.topic)
 		// sender.Target().SetTimeout(5 * time.Second) pas très utile
 		sender.Open()
