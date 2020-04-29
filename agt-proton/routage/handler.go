@@ -52,9 +52,10 @@ func (h *handler) HandleMessagingEvent(t proton.MessagingEvent, e proton.Event) 
 		receiver.Source().SetAddress(h.topic)
 		receiver.Open()
 	case proton.MLinkOpening:
-		logger.Debugf("handler", "Link opening: name=%s, source=%s",
+		logger.Debugf("handler", "Link opening: name=%s, source=%s, target=%s",
 			e.Link().Name(),
-			e.Link().Source().Address())
+			e.Link().Source().Address(),
+			e.Link().Target().Address())
 		if e.Link().Source().Address() == h.topic {
 			e.Link().Flow(1)
 		}
@@ -67,8 +68,7 @@ func (h *handler) HandleMessagingEvent(t proton.MessagingEvent, e proton.Event) 
 		}
 	case proton.MSendable:
 		if ch, ok := h.senders[e.Link()]; ok {
-			// ch <- t
-			close(ch)
+			ch <- t
 		} else {
 			logger.Printf("handler", "Sender not found: %s", e.Link().Name())
 		}
@@ -76,14 +76,17 @@ func (h *handler) HandleMessagingEvent(t proton.MessagingEvent, e proton.Event) 
 		if ch, ok := h.senders[e.Link()]; ok {
 			close(ch)
 			delete(h.senders, e.Link())
+		} else {
+			logger.Printf("handler", "receive link closed, closing session")
+			e.Session().Close()
 		}
-		e.Session().Close()
 	case proton.MSessionClosed:
+		logger.Printf("handler", "session closed, closing connection")
 		e.Connection().Close()
 	case proton.MConnectionClosed:
-		logger.Debugf("handler", "connection closed: %v", e.Connection().String())
+		logger.Printf("handler", "connection closed: %v", e.Connection().String())
 	case proton.MDisconnected:
-		logger.Debugf("handler", "Disconnected: %v (%v)", e.Connection(), e.Connection().Error())
+		logger.Printf("handler", "Disconnected: %v (%v)", e.Connection(), e.Connection().Error())
 	}
 }
 
