@@ -64,7 +64,7 @@ func (h *handler) HandleMessagingEvent(t proton.MessagingEvent, e proton.Event) 
 	case proton.MMessage:
 		attr := route(e.Delivery())
 		if attr != nil {
-			go h.dispatch(attr, make(chan proton.MessagingEvent))
+			go h.dispatch(attr)
 		}
 	case proton.MSendable:
 		if ch, ok := h.senders[e.Link()]; ok {

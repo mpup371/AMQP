@@ -10,16 +10,25 @@ import (
 )
 
 //TODO clefs de routage
-func (h *handler) dispatch(attr attributes.Attributes, events chan proton.MessagingEvent) {
+func (h *handler) dispatch(attr attributes.Attributes) {
 	user, host, err := attr.GetRecipient()
 	if err != nil {
 		logger.Printf("dispatch", "%v", err)
 		return
 	}
 	logger.Printf("dispatch", "sending message to %s@%s", user, host)
+	msg := amqp.NewMessage()
+	msg.SetBody(attr.Marshall())
+	for i := 0; i < 3; i++ {
+		h.forward(fmt.Sprintf("%s_%d", host, i), msg)
+	}
+}
 
+func (h *handler) forward(host string, msg amqp.Message) {
 	var sender proton.Link
-	err = h.engine.InjectWait(func() error {
+	events := make(chan proton.MessagingEvent)
+
+	err := h.engine.InjectWait(func() error {
 		if h.session.State().Has(proton.SRemoteClosed | proton.SLocalClosed) {
 			return fmt.Errorf("session closed: %s", h.session.String())
 		}
@@ -35,6 +44,7 @@ func (h *handler) dispatch(attr attributes.Attributes, events chan proton.Messag
 		logger.Printf("dispatch", "Error inject: %v", err)
 		return
 	}
+
 	evt := <-events
 	if evt == 0 {
 		logger.Printf("dispatch", "channel closed: %v", sender.Name())
@@ -45,8 +55,6 @@ func (h *handler) dispatch(attr attributes.Attributes, events chan proton.Messag
 			logger.Printf("dispatch", "sender closed: %v", sender.Name())
 		}
 		logger.Debugf("sendMsg", "sending on link %v", sender)
-		msg := amqp.NewMessage()
-		msg.SetBody(attr.Marshall())
 		delivery, err := sender.Send(msg)
 		if err == nil {
 			delivery.Settle()

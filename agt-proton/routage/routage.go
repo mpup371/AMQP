@@ -13,6 +13,7 @@ import (
 )
 
 func main() {
+	//TODO url paramétrable
 	url, err := amqp.ParseURL("amqp://localhost:5672/routage")
 	if err != nil {
 		log.Fatal(err)
