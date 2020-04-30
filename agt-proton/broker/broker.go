@@ -7,10 +7,12 @@ package main
 
 import (
 	"flag"
+	"fmt"
 	"jf/AMQP/agt-proton/util"
 	"jf/AMQP/logger"
 	"log"
 	"net"
+	"sync"
 
 	"qpid.apache.org/proton"
 )
@@ -21,20 +23,24 @@ var qsize = flag.Int("qsize", 1000, "Max queue size")
 
 // State for the broker
 type broker struct {
-	queues queues
+	queues   queues // queues immutable et a son propre mutex
+	handlers map[string]*handler
+	mu       sync.Mutex // pour l'accès aux handlers uniquement
 }
+
+var agt broker
 
 func main() {
 	flag.Parse()
-
-	b := &broker{makeQueues()}
-	if err := b.run(); err != nil {
+	agt = broker{queues: makeQueues(),
+		handlers: make(map[string]*handler)}
+	if err := run(); err != nil {
 		log.Fatal(err)
 	}
 }
 
 // Listens for connections and starts a proton.Engine for each one.
-func (b *broker) run() error {
+func run() error {
 	listener, err := net.Listen("tcp", *addr)
 
 	if err != nil {
@@ -51,7 +57,8 @@ func (b *broker) run() error {
 			continue
 		}
 
-		adapter := proton.NewMessagingAdapter(newHandler(&b.queues))
+		h := newHandler(&agt.queues)
+		adapter := proton.NewMessagingAdapter(h)
 		// We want to accept messages when they are enqueued, not just when they
 		// are received, so we turn off auto-accept and prefetch by the adapter.
 		adapter.Prefetch = 0
@@ -67,25 +74,17 @@ func (b *broker) run() error {
 		engine.Connection().SetContainer(util.GetName())
 		engine.Server() // Enable server-side protocol negotiation.
 		logger.Printf("broker", "Accepted connection %s", engine)
-
+		h.engine = engine.Id()
+		h.connection = fmt.Sprintf("%s-%s", conn.LocalAddr(), conn.RemoteAddr())
+		agt.mu.Lock()
+		agt.handlers[h.engine] = h
+		agt.mu.Unlock()
 		go func() { // Start goroutine to run the engine event loop
 			engine.Run()
 			logger.Printf("broker", "Closed %s (%v)", engine, engine.Error())
+			agt.mu.Lock()
+			delete(agt.handlers, h.engine)
+			agt.mu.Unlock()
 		}()
-	}
-}
-
-// handler handles AMQP events. There is one handler per connection.  The
-// handler does not need to be concurrent-safe as proton.Engine will serialize
-// all calls to the handler. We use channels to communicate between the handler
-// goroutine and other goroutines sending and receiving messages.
-type handler struct {
-	queues *queues
-	q      *queue // link Source/Target
-}
-
-func newHandler(queues *queues) *handler {
-	return &handler{
-		queues: queues,
 	}
 }

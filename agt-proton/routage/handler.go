@@ -27,7 +27,7 @@ func newHandler(topic string) *handler {
 }
 
 func (h *handler) HandleMessagingEvent(t proton.MessagingEvent, e proton.Event) {
-	util.LogEvent(t, e)
+	logger.Debugf("handler", "[event] type=%v", t)
 
 	switch t {
 	case proton.MStart:

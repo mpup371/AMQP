@@ -14,9 +14,9 @@ func debugf(id string, format string, data ...interface{}) {
 }
 
 func printf(id string, format string, data ...interface{}) {
-	log.Printf(format, data...)
+	log.Printf(id+" "+format, data...)
 }
 
 func fatalf(id string, format string, data ...interface{}) {
-	log.Fatalf(format, data...)
+	log.Fatalf(id+" "+format, data...)
 }

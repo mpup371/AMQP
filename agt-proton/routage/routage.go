@@ -12,6 +12,7 @@ import (
 	"qpid.apache.org/proton"
 )
 
+//TODO intercepter le kill pour finir le traitement en cours avant de quitter
 func main() {
 	//TODO url paramétrable
 	url, err := amqp.ParseURL("amqp://localhost:5672/routage")

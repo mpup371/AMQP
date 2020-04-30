@@ -1,7 +1,6 @@
 package main
 
 import (
-	"jf/AMQP/agt-proton/util"
 	"jf/AMQP/logger"
 	"time"
 
@@ -15,10 +14,31 @@ voir comment gérer les timeout ici:
   target=@target(41) [durable=0, timeout=0, dynamic=false], initial-delivery-count=0, max-message-size=0]
 */
 
+// handler handles AMQP events. There is one handler per connection.  The
+// handler does not need to be concurrent-safe as proton.Engine will serialize
+// all calls to the handler. We use channels to communicate between the handler
+// goroutine and other goroutines sending and receiving messages.
+type handler struct {
+	queues     *queues
+	q          *queue // link Source/Target
+	engine     string
+	connection string
+	container  string
+}
+
+func newHandler(queues *queues) *handler {
+	return &handler{
+		queues: queues,
+	}
+}
+
 // HandleMessagingEvent handles an event, called in the handler goroutine.
 func (h *handler) HandleMessagingEvent(t proton.MessagingEvent, e proton.Event) {
-	util.LogEvent(t, e)
+	logger.Debugf("event", "[%s] type=%v", h.engine, t)
+
 	switch t {
+	case proton.MConnectionOpening:
+		h.container = e.Connection().Container()
 	// The peer initiates the opening of the link.
 	case proton.MLinkOpening:
 		logger.Debugf("broker", "RemoteSndSettleMode=%v, RemoteRcvSettleMode=%v, State=%v",
@@ -46,7 +66,7 @@ func (h *handler) HandleMessagingEvent(t proton.MessagingEvent, e proton.Event) 
 	case proton.MAccepted:
 		if h.q != nil {
 			n := h.q.Pop()
-			logger.Printf("sendMsg", "message sent from %s(%d): accepted", addr, n)
+			logger.Printf(h.engine, "message sent from %s(%d): accepted", addr, n)
 		}
 	}
 }
@@ -56,13 +76,13 @@ func (h *handler) recvMsg(e proton.Event) {
 
 	if msg, err := e.Delivery().Message(); err == nil {
 		n := h.q.Add(msg)
-		logger.Printf("broker", "message queued in %s(%d)", *addr, n)
+		logger.Printf(h.engine, "message queued in %s(%d)", *addr, n)
 		logger.Debugf("broker", "Delivery settled=%v", e.Delivery().Settled())
 		if !e.Delivery().Settled() {
 			e.Delivery().Accept() // Accept the delivery
 		}
 	} else {
-		logger.Printf("broker", "error reading message: %v", err)
+		logger.Printf(h.engine, "error reading message: %v", err)
 		e.Delivery().Release(true)
 	}
 }
@@ -78,6 +98,6 @@ func (h *handler) sendMsg(sender proton.Link) {
 	if _, err := sender.Send(msg); err == nil {
 		logger.Debugf("sendMsg", "msg=%#v", msg)
 	} else {
-		logger.Printf("sendMsg", "error: %v", err)
+		logger.Printf(h.engine, "error: %v", err)
 	}
 }

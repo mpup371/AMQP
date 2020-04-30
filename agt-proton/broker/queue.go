@@ -73,7 +73,7 @@ func (qs *queues) Len() int {
 	return len(qs.m)
 }
 
-type Qinfo struct {
+type qInfo struct {
 	Name      string
 	Size      uint
 	Creation  time.Time
@@ -81,13 +81,13 @@ type Qinfo struct {
 	LastWrite time.Time
 }
 
-func (qs *queues) Infos() (l []Qinfo) {
+func (qs *queues) Infos() (l []qInfo) {
 	qs.mu.Lock()
 	defer qs.mu.Unlock()
-	l = make([]Qinfo, 0, len(qs.m))
+	l = make([]qInfo, 0, len(qs.m))
 
 	for name, q := range qs.m {
-		l = append(l, Qinfo{name, q.Len(), q.creationDate, q.lastRead, q.lastWrite})
+		l = append(l, qInfo{name, q.Len(), q.creationDate, q.lastRead, q.lastWrite})
 	}
 	return l
 }
