@@ -24,21 +24,20 @@ type handler struct {
 	engine     string
 	connection string
 	container  string
+	lastEvent  time.Time
 }
 
 func newHandler(queues *queues) *handler {
-	return &handler{
-		queues: queues,
-	}
+	return &handler{queues: queues}
 }
 
 // HandleMessagingEvent handles an event, called in the handler goroutine.
 func (h *handler) HandleMessagingEvent(t proton.MessagingEvent, e proton.Event) {
 	logger.Debugf("event", "[%s] type=%v", h.engine, t)
-
+	h.lastEvent = time.Now()
 	switch t {
 	case proton.MConnectionOpening:
-		h.container = e.Connection().Container()
+		h.container = e.Connection().RemoteContainer()
 	// The peer initiates the opening of the link.
 	case proton.MLinkOpening:
 		logger.Debugf("broker", "RemoteSndSettleMode=%v, RemoteRcvSettleMode=%v, State=%v",
