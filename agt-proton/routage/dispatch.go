@@ -63,5 +63,6 @@ func (h *handler) forward(host string, msg amqp.Message) {
 		} else {
 			logger.Printf("sendMsg", "error: %v", err)
 		}
+		sender.Close()
 	})
 }

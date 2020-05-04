@@ -56,15 +56,19 @@ func (h *handler) HandleMessagingEvent(t proton.MessagingEvent, e proton.Event) 
 			e.Link().Name(),
 			e.Link().Source().Address(),
 			e.Link().Target().Address())
+	case proton.MLinkOpened:
+		logger.Debugf("handler", "link opened: state=%v", e.Link().State())
 		if e.Link().Source().Address() == h.topic {
 			e.Link().Flow(1)
 		}
-	case proton.MLinkOpened:
-		logger.Debugf("handler", "link opened: state=%v", e.Link().State())
 	case proton.MMessage:
 		attr := route(e.Delivery())
 		if attr != nil {
-			go h.dispatch(attr)
+			go func() {
+				h.dispatch(attr)
+			}()
+		} else {
+
 		}
 	case proton.MSendable:
 		if ch, ok := h.senders[e.Link()]; ok {
@@ -72,6 +76,8 @@ func (h *handler) HandleMessagingEvent(t proton.MessagingEvent, e proton.Event) 
 		} else {
 			logger.Printf("handler", "Sender not found: %s", e.Link().Name())
 		}
+	case proton.MSettled:
+		e.Link().Flow(1)
 	case proton.MLinkClosed:
 		if ch, ok := h.senders[e.Link()]; ok {
 			close(ch)
@@ -90,27 +96,35 @@ func (h *handler) HandleMessagingEvent(t proton.MessagingEvent, e proton.Event) 
 	}
 }
 
-//TODO: si mesg pourri release au lieu de reject pour que le broker supprime le msg
+//TODO Release si erreur interne et qu'on veut garder le message en queue
 func route(delivery proton.Delivery) attributes.Attributes {
 	msg, err := delivery.Message()
 	if err != nil {
 		logger.Printf("route", "Error reading message: %v", err)
-		delivery.Reject()
+		// ne pas faire le settle ici pour que ce soit le broker qui le fasse
+		// c'est Update() qui envoie la trame, Settle() ne fait que rajouter le flag dans
+		// la trame avant envoi.
+		// delivery.Reject()
+		delivery.Update(proton.Rejected)
 		return nil
 	}
 	logger.Printf("route", "Message: body=%v", msg.Body())
 	attr, err := persist(msg)
 	if err != nil {
 		logger.Printf("route", "Error persisting attributes: %v", err)
-		delivery.Reject()
+		// delivery.Reject()
+		delivery.Update(proton.Rejected)
 		return nil
 	}
 	if _, _, err := attr.GetRecipient(); err != nil {
 		logger.Printf("route", "recipient not found (%v)", err)
-		delivery.Reject()
+		// delivery.Reject()
+		delivery.Update(proton.Rejected)
+		return nil
 	}
 
-	delivery.Accept()
+	// delivery.Accept()
+	delivery.Update(proton.Accepted)
 	// il faut accepter avant de lancer les goroutines sinon on
 	// va relire le même message du broker
 

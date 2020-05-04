@@ -20,7 +20,7 @@ voir comment gérer les timeout ici:
 // goroutine and other goroutines sending and receiving messages.
 type handler struct {
 	queues     *queues
-	q          *queue // link Source/Target
+	q          *queue // link Source/Target //TODO FIXME ne marche que pour un client à la fois
 	engine     string
 	connection string
 	container  string
@@ -47,26 +47,41 @@ func (h *handler) HandleMessagingEvent(t proton.MessagingEvent, e proton.Event) 
 		if e.Link().IsReceiver() {
 			addr := e.Link().RemoteTarget().Address()
 			logger.Debugf("broker", "push message to %s", addr)
-			h.q = h.queues.Get(addr)
-			e.Link().Flow(1) // Give credit to fill the buffer to capacity.
+			h.q = h.queues.Get(addr) //FIXME
+			e.Link().Flow(1)         // Give credit to fill the buffer to capacity.
 		} else {
 			addr := e.Link().RemoteSource().Address()
 			logger.Debugf("broker", "pull message from %s", addr)
 			if addr == "admin" {
-				h.q = nil
-				h.sendAdmin(e.Link())
+				h.q = nil //FIXME
 			} else {
-				h.q = h.queues.Get(addr)
-				h.sendMsg(e.Link())
+				h.q = h.queues.Get(addr) //FIXME
 			}
 		}
+	case proton.MSendable:
+		addr := e.Link().RemoteSource().Address()
+		if addr == "admin" {
+			h.sendAdmin(e.Link())
+		} else {
+			h.sendMsg(e.Link())
+		}
+
 	case proton.MMessage:
 		h.recvMsg(e)
+		// TODO pourquoi le broker renvoie le settled automatiquement ?
+		// c'est dans proton-C ou proton-Go ?
 	case proton.MAccepted:
 		if h.q != nil {
 			n := h.q.Pop()
-			logger.Printf(h.engine, "message sent from %s(%d): accepted", addr, n)
+			logger.Printf(h.engine, "message sent from %s(%d): accepted", *addr, n)
 		}
+		//TODO suppression fichier
+	case proton.MRejected:
+		if h.q != nil {
+			n := h.q.Pop()
+			logger.Printf(h.engine, "message sent from %s(%d): rejected", *addr, n)
+		}
+		//TODO suppression fichier
 	}
 }
 

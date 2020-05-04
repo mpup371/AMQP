@@ -124,10 +124,6 @@ func (q *Queue) Peek() (item interface{}) {
 	if q.count == 0 {
 		return nil
 	}
-	// FIXME: why would this check be required?
-	// if q.head.first >= q.head.last {
-	// 	return nil
-	// }
 
 	// Get item from queue
 	item = q.head.items[q.head.first]
