@@ -3,15 +3,14 @@ package util
 import (
 	"fmt"
 	"os"
-	"strings"
+	"path/filepath"
 	"time"
 )
 
 func GetName() string {
 	var name string
 	host, err := os.Hostname()
-	i := strings.LastIndex(os.Args[0], "/")
-	cmd := os.Args[0][i+1:]
+	cmd := filepath.Base(os.Args[0])
 	if err == nil {
 		name = fmt.Sprintf("%s@%s[%d]", cmd, host, os.Getegid())
 	} else {

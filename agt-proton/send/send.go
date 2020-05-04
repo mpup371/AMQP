@@ -51,6 +51,7 @@ package main
 import (
 	"flag"
 	"fmt"
+	"jf/AMQP/agt-proton/attributes"
 	"jf/AMQP/logger"
 	"log"
 	"net"
@@ -62,18 +63,62 @@ import (
 	"qpid.apache.org/proton"
 )
 
+var urlStr string
+
+func usage() {
+	fmt.Fprintf(flag.CommandLine.Output(), "Usage of %s:\n", os.Args[0])
+	flag.PrintDefaults()
+	fmt.Fprintf(flag.CommandLine.Output(), "attributes:\n")
+	for attr, mandatory := range attributes.Mandatory {
+		fmt.Fprintf(flag.CommandLine.Output(), "%s=<string> (mandatory:%v)\n", attr, mandatory)
+	}
+}
+
+// export AGT_URL=amqp://localhost:5672/routage
 func main() {
+	flag.StringVar(&urlStr, "agt_url", "", "url of agt server")
+	flag.Usage = usage
 	flag.Parse()
 
-	if len(flag.Args()) != 1 {
-		fmt.Printf("send url")
-		os.Exit(1)
+	if urlStr == "" {
+		urlStr = os.Getenv("AGT_URL")
 	}
 
-	if url, err := amqp.ParseURL(flag.Arg(0)); err != nil {
+	if urlStr == "" {
+		logger.Fatalf("main()", "agt_url not found")
+		os.Exit(-1)
+	}
+
+	if url, err := amqp.ParseURL(urlStr); err != nil {
 		log.Fatal(err)
 	} else if err := connect(url); err != nil {
 		log.Fatal(err)
+	}
+
+	if len(flag.Args()) < len(attributes.Mandatory) {
+		flag.Usage()
+		log.Fatal("not enough parameters")
+	}
+
+	// Vérification attributs obligatoires
+	valid := make(map[string]bool)
+	for k, v := range attributes.Mandatory {
+		if v {
+			valid[k] = false
+		}
+	}
+	for _, p := range flag.Args() {
+		s := strings.Split(p, "=")
+		if len(s) != 2 {
+			flag.Usage()
+			log.Fatal("incorrect parameter: ", p)
+		}
+		valid[s[0]] = true
+	}
+	for k, v := range valid {
+		if !v {
+			log.Fatal("missing parameter ", k)
+		}
 	}
 }
 

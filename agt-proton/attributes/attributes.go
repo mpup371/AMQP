@@ -16,6 +16,8 @@ const (
 	FILE = "user.agt.routage.file"
 )
 
+var Mandatory = map[string]bool{TO: true, FROM: true, FILE: true}
+
 type Attributes map[string]string
 
 func NewAttributes() Attributes {
