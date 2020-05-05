@@ -22,6 +22,11 @@ type hInfo struct {
 	Connection string
 	Container  string
 	LastEvent  string
+	Links      []lInfo
+}
+
+type lInfo struct {
+	Topic string
 }
 
 func makeStats(queues *queues) ([]byte, error) {
@@ -33,7 +38,12 @@ func makeStats(queues *queues) ([]byte, error) {
 		h := hInfo{Engine: info.engine,
 			Connection: info.connection,
 			Container:  info.container,
-			LastEvent:  util.FormatTime(info.lastEvent)}
+			LastEvent:  util.FormatTime(info.lastEvent),
+			Links:      make([]lInfo, 0)}
+
+		// for _, l := range info.links {
+		// 	h.Links = append(h.Links, lInfo{l.topic})
+		// }
 		infoHandlers = append(infoHandlers, h)
 	}
 	agt.mu.Unlock()
