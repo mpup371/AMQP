@@ -29,7 +29,7 @@ type handler struct {
 
 type link struct {
 	topic string
-	q     *queue // link Source/Target //TODO FIXME ne marche que pour un client à la fois
+	q     *queue // link Source/Target
 }
 
 func newHandler(queues *queues) *handler {
@@ -61,13 +61,13 @@ func (h *handler) HandleMessagingEvent(t proton.MessagingEvent, e proton.Event) 
 		if e.Link().IsReceiver() {
 			topic := e.Link().RemoteTarget().Address()
 			logger.Debugf("broker", "push message to %s", topic)
-			l.topic = topic
+			l.topic = topic + "write:"
 			l.q = h.queues.Get(topic)
 			e.Link().Flow(1) // Give credit to fill the buffer to capacity.
 		} else {
 			topic := e.Link().RemoteSource().Address()
 			logger.Debugf("broker", "pull message from %s", topic)
-			l.topic = topic
+			l.topic = topic + ":read"
 			if topic == "admin" {
 				l.q = nil
 			} else {

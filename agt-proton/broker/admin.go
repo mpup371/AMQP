@@ -41,9 +41,9 @@ func makeStats(queues *queues) ([]byte, error) {
 			LastEvent:  util.FormatTime(info.lastEvent),
 			Links:      make([]lInfo, 0)}
 
-		// for _, l := range info.links {
-		// 	h.Links = append(h.Links, lInfo{l.topic})
-		// }
+		for _, l := range info.links {
+			h.Links = append(h.Links, lInfo{l.topic})
+		}
 		infoHandlers = append(infoHandlers, h)
 	}
 	agt.mu.Unlock()
