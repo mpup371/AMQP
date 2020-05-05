@@ -26,7 +26,9 @@ type hInfo struct {
 }
 
 type lInfo struct {
-	Topic string
+	Topic    string
+	RW       string
+	Creation string
 }
 
 func makeStats(queues *queues) ([]byte, error) {
@@ -42,7 +44,8 @@ func makeStats(queues *queues) ([]byte, error) {
 			Links:      make([]lInfo, 0)}
 
 		for _, l := range info.links {
-			h.Links = append(h.Links, lInfo{l.topic})
+			li := lInfo{Topic: l.topic, RW: l.rw, Creation: util.FormatTime(l.creationDate)}
+			h.Links = append(h.Links, li)
 		}
 		infoHandlers = append(infoHandlers, h)
 	}

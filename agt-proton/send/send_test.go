@@ -22,6 +22,7 @@ func mockMessage() amqp.Message {
 }
 
 // lancer le broker et le routage d'abord
+// /usr/local/go/bin/go test jf/AMQP/agt-proton/send -run "^(TestSend)$" -v -count=1
 func TestSend(t *testing.T) {
 	makeMessage = mockMessage
 	os.Remove("/tmp/date")

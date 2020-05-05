@@ -28,8 +28,10 @@ type handler struct {
 }
 
 type link struct {
-	topic string
-	q     *queue // link Source/Target
+	topic        string
+	rw           string
+	q            *queue // link Source/Target
+	creationDate time.Time
 }
 
 func newHandler(queues *queues) *handler {
@@ -54,6 +56,7 @@ func (h *handler) HandleMessagingEvent(t proton.MessagingEvent, e proton.Event) 
 		delete(h.links, e.Link())
 	case proton.MLinkOpened:
 		l, ok := h.links[e.Link()]
+		l.creationDate = time.Now()
 		if !ok {
 			logger.Printf("broker", "Link not found %v", e.Link().Name())
 			break
@@ -61,13 +64,15 @@ func (h *handler) HandleMessagingEvent(t proton.MessagingEvent, e proton.Event) 
 		if e.Link().IsReceiver() {
 			topic := e.Link().RemoteTarget().Address()
 			logger.Debugf("broker", "push message to %s", topic)
-			l.topic = topic + "write:"
+			l.topic = topic
+			l.rw = "write"
 			l.q = h.queues.Get(topic)
 			e.Link().Flow(1) // Give credit to fill the buffer to capacity.
 		} else {
 			topic := e.Link().RemoteSource().Address()
 			logger.Debugf("broker", "pull message from %s", topic)
-			l.topic = topic + ":read"
+			l.topic = topic
+			l.rw = "read"
 			if topic == "admin" {
 				l.q = nil
 			} else {
