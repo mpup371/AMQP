@@ -20,15 +20,21 @@ voir comment gérer les timeout ici:
 // goroutine and other goroutines sending and receiving messages.
 type handler struct {
 	queues     *queues
-	q          *queue // link Source/Target //TODO FIXME ne marche que pour un client à la fois
+	links      map[proton.Link]*link
 	engine     string
 	connection string
 	container  string
 	lastEvent  time.Time
 }
 
+type link struct {
+	topic string
+	q     *queue // link Source/Target //TODO FIXME ne marche que pour un client à la fois
+}
+
 func newHandler(queues *queues) *handler {
-	return &handler{queues: queues}
+	return &handler{queues: queues,
+		links: make(map[proton.Link]*link)}
 }
 
 // HandleMessagingEvent handles an event, called in the handler goroutine.
@@ -43,54 +49,80 @@ func (h *handler) HandleMessagingEvent(t proton.MessagingEvent, e proton.Event) 
 		logger.Debugf("broker", "RemoteSndSettleMode=%v, RemoteRcvSettleMode=%v, State=%v",
 			e.Link().RemoteSndSettleMode(), e.Link().RemoteRcvSettleMode(),
 			e.Link().State())
+		h.links[e.Link()] = &link{}
+	case proton.MLinkClosing:
+		delete(h.links, e.Link())
 	case proton.MLinkOpened:
+		l, ok := h.links[e.Link()]
+		if !ok {
+			logger.Printf("broker", "Link not found %v", e.Link().Name())
+			break
+		}
 		if e.Link().IsReceiver() {
-			addr := e.Link().RemoteTarget().Address()
-			logger.Debugf("broker", "push message to %s", addr)
-			h.q = h.queues.Get(addr) //FIXME
-			e.Link().Flow(1)         // Give credit to fill the buffer to capacity.
+			topic := e.Link().RemoteTarget().Address()
+			logger.Debugf("broker", "push message to %s", topic)
+			l.topic = topic
+			l.q = h.queues.Get(topic)
+			e.Link().Flow(1) // Give credit to fill the buffer to capacity.
 		} else {
-			addr := e.Link().RemoteSource().Address()
-			logger.Debugf("broker", "pull message from %s", addr)
-			if addr == "admin" {
-				h.q = nil //FIXME
+			topic := e.Link().RemoteSource().Address()
+			logger.Debugf("broker", "pull message from %s", topic)
+			l.topic = topic
+			if topic == "admin" {
+				l.q = nil
 			} else {
-				h.q = h.queues.Get(addr) //FIXME
+				l.q = h.queues.Get(topic)
 			}
 		}
 	case proton.MSendable:
-		addr := e.Link().RemoteSource().Address()
-		if addr == "admin" {
+		l, ok := h.links[e.Link()]
+		if !ok {
+			logger.Printf("broker", "Link not found %v", e.Link().Name())
+			break
+		}
+		topic := e.Link().RemoteSource().Address()
+		if topic == "admin" {
 			h.sendAdmin(e.Link())
 		} else {
-			h.sendMsg(e.Link())
+			h.sendMsg(e.Link(), l)
 		}
-
 	case proton.MMessage:
-		h.recvMsg(e)
-		// TODO pourquoi le broker renvoie le settled automatiquement ?
-		// c'est dans proton-C ou proton-Go ?
+		l, ok := h.links[e.Link()]
+		if !ok {
+			logger.Printf("broker", "Link not found %v", e.Link().Name())
+			break
+		}
+		h.recvMsg(e, l)
 	case proton.MAccepted:
-		if h.q != nil {
-			n := h.q.Pop()
-			logger.Printf(h.engine, "message sent from %s(%d): accepted", *addr, n)
+		l, ok := h.links[e.Link()]
+		if !ok {
+			logger.Printf("broker", "Link not found %v", e.Link().Name())
+			break
+		}
+		if l.q != nil {
+			n := l.q.Pop()
+			logger.Printf(h.engine, "message sent from %s(%d): accepted", l.topic, n)
 		}
 		//TODO suppression fichier
 	case proton.MRejected:
-		if h.q != nil {
-			n := h.q.Pop()
-			logger.Printf(h.engine, "message sent from %s(%d): rejected", *addr, n)
+		l, ok := h.links[e.Link()]
+		if !ok {
+			logger.Printf("broker", "Link not found %v", e.Link().Name())
+			break
+		}
+		if l.q != nil {
+			n := l.q.Pop()
+			logger.Printf(h.engine, "message sent from %s(%d): rejected", l.topic, n)
 		}
 		//TODO suppression fichier
 	}
 }
 
 // startReceiver creates a receiver and a goroutine for its run() method.
-func (h *handler) recvMsg(e proton.Event) {
-
+func (h *handler) recvMsg(e proton.Event, l *link) {
 	if msg, err := e.Delivery().Message(); err == nil {
-		n := h.q.Add(msg)
-		logger.Printf(h.engine, "message queued in %s(%d)", *addr, n)
+		n := l.q.Add(msg)
+		logger.Printf(h.engine, "message queued in %s(%d)", l.topic, n)
 		logger.Debugf("broker", "Delivery settled=%v", e.Delivery().Settled())
 		if !e.Delivery().Settled() {
 			e.Delivery().Accept() // Accept the delivery
@@ -101,11 +133,12 @@ func (h *handler) recvMsg(e proton.Event) {
 	}
 }
 
-func (h *handler) sendMsg(sender proton.Link) {
+// TODO goroutine
+func (h *handler) sendMsg(sender proton.Link, l *link) {
 	logger.Debugf("sendMsg", "sending on link %v", sender)
 
-	msg := h.q.Peek()
-	for ; msg == nil; msg = h.q.Peek() {
+	msg := l.q.Peek()
+	for ; msg == nil; msg = l.q.Peek() {
 		time.Sleep(1 * time.Second)
 	}
 

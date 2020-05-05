@@ -64,20 +64,24 @@ func (h *handler) HandleMessagingEvent(t proton.MessagingEvent, e proton.Event) 
 	case proton.MMessage:
 		attr := route(e.Delivery())
 		if attr != nil {
-			go func() {
-				h.dispatch(attr)
-			}()
+			e.Delivery().Accept()
 		} else {
-
+			e.Delivery().Reject()
 		}
+		go func() {
+			if attr != nil {
+				h.dispatch(attr)
+			}
+			h.engine.Inject(func() {
+				e.Link().Flow(1)
+			})
+		}()
 	case proton.MSendable:
 		if ch, ok := h.senders[e.Link()]; ok {
 			ch <- t
 		} else {
 			logger.Printf("handler", "Sender not found: %s", e.Link().Name())
 		}
-	case proton.MSettled:
-		e.Link().Flow(1)
 	case proton.MLinkClosed:
 		if ch, ok := h.senders[e.Link()]; ok {
 			close(ch)
@@ -104,8 +108,9 @@ func route(delivery proton.Delivery) attributes.Attributes {
 		// ne pas faire le settle ici pour que ce soit le broker qui le fasse
 		// c'est Update() qui envoie la trame, Settle() ne fait que rajouter le flag dans
 		// la trame avant envoi.
+		// delivery.Update(proton.Rejected)
+		//reject() fait les deux
 		// delivery.Reject()
-		delivery.Update(proton.Rejected)
 		return nil
 	}
 	logger.Printf("route", "Message: body=%v", msg.Body())
@@ -113,20 +118,18 @@ func route(delivery proton.Delivery) attributes.Attributes {
 	if err != nil {
 		logger.Printf("route", "Error persisting attributes: %v", err)
 		// delivery.Reject()
-		delivery.Update(proton.Rejected)
+		// delivery.Update(proton.Rejected)
 		return nil
 	}
 	if _, _, err := attr.GetRecipient(); err != nil {
 		logger.Printf("route", "recipient not found (%v)", err)
 		// delivery.Reject()
-		delivery.Update(proton.Rejected)
+		// delivery.Update(proton.Rejected)
 		return nil
 	}
 
 	// delivery.Accept()
-	delivery.Update(proton.Accepted)
-	// il faut accepter avant de lancer les goroutines sinon on
-	// va relire le même message du broker
+	// delivery.Update(proton.Accepted)
 
 	return attr
 }
