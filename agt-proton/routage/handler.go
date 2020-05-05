@@ -4,7 +4,6 @@ PN_TRACE_FRM=1 go run -tags debug ./receive amqp://localhost:5672/queue1
 package main
 
 import (
-	"fmt"
 	"jf/AMQP/agt-proton/attributes"
 	"jf/AMQP/agt-proton/util"
 	"jf/AMQP/logger"
@@ -64,18 +63,17 @@ func (h *handler) HandleMessagingEvent(t proton.MessagingEvent, e proton.Event) 
 	case proton.MMessage:
 		attr := route(e.Delivery())
 		if attr != nil {
-			e.Delivery().Accept()
+			go func() {
+				if attr != nil {
+					h.dispatch(attr)
+				}
+				h.engine.Inject(func() {
+					e.Link().Flow(1)
+				})
+			}()
 		} else {
-			e.Delivery().Reject()
+			e.Link().Flow(1)
 		}
-		go func() {
-			if attr != nil {
-				h.dispatch(attr)
-			}
-			h.engine.Inject(func() {
-				e.Link().Flow(1)
-			})
-		}()
 	case proton.MSendable:
 		if ch, ok := h.senders[e.Link()]; ok {
 			ch <- t
@@ -100,56 +98,54 @@ func (h *handler) HandleMessagingEvent(t proton.MessagingEvent, e proton.Event) 
 	}
 }
 
-//TODO Release si erreur interne et qu'on veut garder le message en queue
 func route(delivery proton.Delivery) attributes.Attributes {
 	msg, err := delivery.Message()
 	if err != nil {
 		logger.Printf("route", "Error reading message: %v", err)
-		// ne pas faire le settle ici pour que ce soit le broker qui le fasse
-		// c'est Update() qui envoie la trame, Settle() ne fait que rajouter le flag dans
-		// la trame avant envoi.
-		// delivery.Update(proton.Rejected)
-		//reject() fait les deux
-		// delivery.Reject()
+		delivery.Reject()
 		return nil
 	}
 	logger.Printf("route", "Message: body=%v", msg.Body())
-	attr, err := persist(msg)
+	attr, err := decode(msg)
 	if err != nil {
 		logger.Printf("route", "Error persisting attributes: %v", err)
-		// delivery.Reject()
-		// delivery.Update(proton.Rejected)
+		delivery.Reject()
 		return nil
 	}
 	if _, _, err := attr.GetRecipient(); err != nil {
 		logger.Printf("route", "recipient not found (%v)", err)
-		// delivery.Reject()
-		// delivery.Update(proton.Rejected)
+		delivery.Reject()
 		return nil
-	}
-
-	// delivery.Accept()
-	// delivery.Update(proton.Accepted)
-
-	return attr
-}
-
-func persist(msg amqp.Message) (attr attributes.Attributes, err error) {
-	var buf []byte = make([]byte, 0, 1024)
-	msg.Unmarshal(&buf)
-	logger.Debugf("persist", "buffer=%s", buf)
-	attr, err = attributes.Unmarshal(buf)
-	logger.Debugf("persist", "attr=\n%s", attr.Marshall())
-	if err != nil {
-		logger.Debugf("persist", "Error reading attributes: %v", err)
-		return
 	}
 	path, err := attr.GetFile()
 	if err != nil {
-		logger.Debugf("persist", "Error : file path not found in attributes")
-		err = fmt.Errorf("file path not found in attributes")
-		return
+		logger.Printf("route", "Error : file path not found in attributes")
+		delivery.Reject()
+		return nil
 	}
+	if err := persist(attr, path); err != nil {
+		logger.Printf("route", "Error persisting attributes: %v", err)
+		delivery.Reject() //TODO release + sleep si  fs full
+		return nil
+	}
+	delivery.Accept()
+	return attr
+}
+
+func decode(msg amqp.Message) (attr attributes.Attributes, err error) {
+	var buf []byte = make([]byte, 0, 1024)
+	msg.Unmarshal(&buf)
+	logger.Debugf("decode", "buffer=%s", buf)
+	attr, err = attributes.Unmarshal(buf)
+	logger.Debugf("decode", "attr=\n%s", attr.Marshall())
+	if err != nil {
+		logger.Printf("decode", "Error reading attributes: %v", err)
+	}
+	return
+}
+
+//TODO Release si erreur interne et qu'on veut garder le message en queue
+func persist(attr attributes.Attributes, path string) (err error) {
 	logger.Printf("persist", "write attributes to %s", path)
 	err = attributes.SetAttributes(path, attr)
 	return

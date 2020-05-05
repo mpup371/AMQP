@@ -42,3 +42,12 @@ func TestSend(t *testing.T) {
 		t.Errorf("Failed reading attributes: %v", err)
 	}
 }
+func TestFileNotFound(t *testing.T) {
+	makeMessage = mockMessage
+	os.Remove("/tmp/date")
+	url, _ := amqp.ParseURL("amqp://localhost:5672/routage")
+	if err := connect(url); err != nil {
+		t.Error(err)
+	}
+
+}
