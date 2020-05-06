@@ -3,6 +3,7 @@ package main
 import (
 	"jf/AMQP/agt-proton/attributes"
 	"jf/AMQP/logger"
+	"os"
 
 	"qpid.apache.org/amqp"
 	"qpid.apache.org/proton"
@@ -17,10 +18,26 @@ func (h *handler) dispatch(attr attributes.Attributes) {
 	if key, ok := attr.Get(attributes.KEY); ok {
 		logger.Printf("dispatch", "key=%s", key)
 		if recipients, ok := keys[key]; ok {
+			file, ok := attr.Get(attributes.FILE)
+			if !ok {
+				logger.Printf("dispatch", "filepath not found")
+				return
+			}
+			// à ce stade, le message a déjà été retiré de la queue,
+			// donc il faut supprimer l'original quoi qu'il arrive
+			defer rm(file)
 			for _, to := range recipients {
 				newAttr := attr
 				newAttr.Remove(attributes.KEY)
 				newAttr.Add(attributes.TO, to)
+
+				if newFile, err := link(file, to); err == nil {
+					newAttr.Add(attributes.FILE, newFile)
+				} else {
+					logger.Printf("dispatch", "Error link file %s (%v)", file, err)
+					return
+				}
+
 				logger.Debugf("dispatch", "original: %v", attr)
 				logger.Debugf("dispatch", "new: %v", newAttr)
 				msg := amqp.NewMessage()
@@ -39,6 +56,17 @@ func (h *handler) dispatch(attr attributes.Attributes) {
 			logger.Printf("dispatch", "no recipient found")
 		}
 	}
+}
+
+func link(path, suffix string) (newPath string, err error) {
+	newPath = path + "-" + suffix
+	err = os.Link(path, newPath)
+	return
+}
+
+func rm(path string) {
+	err := os.Remove(path)
+	logger.Printf("rm", "rm %s (%v)", path, err)
 }
 
 //TODO mock session pour tests unitaires

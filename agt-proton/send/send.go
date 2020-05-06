@@ -67,6 +67,7 @@ import (
 )
 
 var urlStr string
+var attr attributes.Attributes
 
 func usage() {
 	fmt.Fprintf(flag.CommandLine.Output(), "Usage of %s:\n", os.Args[0])
@@ -99,6 +100,7 @@ func main() {
 			valid[k] = false
 		}
 	}
+	attr = attributes.NewAttributes()
 	for _, p := range flag.Args() {
 		s := strings.Split(p, "=")
 		if len(s) != 2 {
@@ -106,12 +108,14 @@ func main() {
 			log.Fatal("incorrect parameter: ", p)
 		}
 		valid[s[0]] = true
+		attr.Add(s[0], s[1])
 	}
 	for k, v := range valid {
 		if !v {
 			log.Fatal("missing parameter ", k)
 		}
 	}
+
 	if url, err := amqp.ParseURL(urlStr); err != nil {
 		log.Fatal(err)
 	} else if err := connect(url); err != nil {

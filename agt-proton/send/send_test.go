@@ -10,21 +10,20 @@ import (
 	"qpid.apache.org/amqp"
 )
 
-func mockMessage() amqp.Message {
-	m := amqp.NewMessage()
-	attr := attributes.NewAttributes()
+func mockMessage() {
+
+	attr = attributes.NewAttributes()
 	attr.Add("user.agt.routage.from", "moi@mamaison")
 	attr.Add("user.agt.routage.to", "toi@tamaison")
 	attr.Add("user.agt.routage.file", "/tmp/date")
 	attr.Add("user.agt.data.bdpe.numero", "123456")
-	m.SetBody(attr.Marshall())
-	return m
+
 }
 
 // lancer le broker et le routage d'abord
 // /usr/local/go/bin/go test jf/AMQP/agt-proton/send -run "^(TestSend)$" -v -count=1
 func TestSend(t *testing.T) {
-	makeMessage = mockMessage
+	mockMessage()
 	os.Remove("/tmp/date")
 	exec.Command("sh", "-c", "date > /tmp/date").Run()
 	url, _ := amqp.ParseURL("amqp://localhost:5672/routage")
@@ -44,7 +43,7 @@ func TestSend(t *testing.T) {
 	}
 }
 func TestFileNotFound(t *testing.T) {
-	makeMessage = mockMessage
+	mockMessage()
 	os.Remove("/tmp/date")
 	url, _ := amqp.ParseURL("amqp://localhost:5672/routage")
 	if err := connect(url); err != nil {
@@ -53,18 +52,16 @@ func TestFileNotFound(t *testing.T) {
 
 }
 
-func mockMessageKey() amqp.Message {
-	m := amqp.NewMessage()
-	attr := attributes.NewAttributes()
+func mockMessageKey() {
+	attr = attributes.NewAttributes()
 	attr.Add("user.agt.routage.from", "moi@mamaison")
 	attr.Add("user.agt.routage.file", "/tmp/date")
 	attr.Add("user.agt.data.bdpe.numero", "123456")
 	attr.Add("user.agt.routage.key", "clef1")
-	m.SetBody(attr.Marshall())
-	return m
+
 }
 func TestClef(t *testing.T) {
-	makeMessage = mockMessageKey
+	mockMessageKey()
 	os.Remove("/tmp/date")
 	exec.Command("sh", "-c", "date > /tmp/date").Run()
 	url, _ := amqp.ParseURL("amqp://localhost:5672/routage")

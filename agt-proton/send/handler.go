@@ -4,16 +4,8 @@ import (
 	"jf/AMQP/agt-proton/util"
 	"jf/AMQP/logger"
 
-	"qpid.apache.org/amqp"
 	"qpid.apache.org/proton"
 )
-
-// for testing purposes
-var makeMessage func() amqp.Message
-
-func init() {
-	makeMessage = newMessage
-}
 
 type handler struct {
 	topic string
@@ -103,7 +95,8 @@ func (h *handler) HandleMessagingEvent(t proton.MessagingEvent, e proton.Event) 
 
 func sendMsg(sender proton.Link) error {
 	logger.Debugf("sendMsg", "sending on link %v", sender)
-	m := makeMessage()
+	m := newMessage()
+	m.SetBody(attr.Marshall())
 	delivery, err := sender.Send(m)
 	if err == nil {
 		delivery.Settle()
