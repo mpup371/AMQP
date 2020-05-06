@@ -107,11 +107,6 @@ func accept(delivery proton.Delivery) attributes.Attributes {
 		delivery.Update(proton.Rejected)
 		return nil
 	}
-	if _, _, err := attr.GetRecipient(); err != nil {
-		logger.Printf("route", "recipient not found (%v)", err)
-		delivery.Update(proton.Rejected)
-		return nil
-	}
 	path, err := attr.GetFile()
 	if err != nil {
 		logger.Printf("route", "Error : file path not found in attributes")

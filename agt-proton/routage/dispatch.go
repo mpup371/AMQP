@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"jf/AMQP/agt-proton/attributes"
 	"jf/AMQP/logger"
 
@@ -9,23 +8,48 @@ import (
 	"qpid.apache.org/proton"
 )
 
-//TODO clefs de routage
+var keys = map[string][]string{
+	"clef1": {"client1@host1", "client2@host2"},
+}
+
 func (h *handler) dispatch(attr attributes.Attributes) {
-	user, host, err := attr.GetRecipient()
-	if err != nil {
-		logger.Printf("dispatch", "%v", err)
-		return
-	}
-	logger.Printf("dispatch", "sending message to %s@%s", user, host)
-	msg := amqp.NewMessage()
-	msg.SetBody(attr.Marshall())
-	for i := 0; i < 3; i++ {
-		h.forward(fmt.Sprintf("%s_%d", host, i), msg)
+
+	if key, ok := attr.Get(attributes.KEY); ok {
+		logger.Printf("dispatch", "key=%s", key)
+		if recipients, ok := keys[key]; ok {
+			for _, to := range recipients {
+				newAttr := attr
+				newAttr.Remove(attributes.KEY)
+				newAttr.Add(attributes.TO, to)
+				logger.Debugf("dispatch", "original: %v", attr)
+				logger.Debugf("dispatch", "new: %v", newAttr)
+				msg := amqp.NewMessage()
+				msg.SetBody(newAttr.Marshall())
+				h.forward(to, msg)
+			}
+		} else {
+			logger.Printf("dispatch", "key not found: %s", key)
+		}
+	} else {
+		if to, ok := attr.Get(attributes.TO); ok {
+			msg := amqp.NewMessage()
+			msg.SetBody(attr.Marshall())
+			h.forward(to, msg)
+		} else {
+			logger.Printf("dispatch", "no recipient found")
+		}
 	}
 }
 
-func (h *handler) forward(host string, msg amqp.Message) {
-	sender := h.session.Sender("sendto:" + host)
+//TODO mock session pour tests unitaires
+func (h *handler) forward(to string, msg amqp.Message) {
+	user, host, err := attributes.GetRecipient(to)
+	if err != nil {
+		logger.Printf("forward", "%v", err)
+		return
+	}
+	logger.Printf("forward", "sending message to %s@%s", user, host)
+	sender := h.session.Sender("sendTo:" + host)
 	logger.Debugf("forward", "sender: state=%v", sender.State())
 	sender.SetSndSettleMode(proton.SndSettled)
 	sender.Target().SetAddress(host)

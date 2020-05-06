@@ -92,17 +92,6 @@ func main() {
 		os.Exit(-1)
 	}
 
-	if url, err := amqp.ParseURL(urlStr); err != nil {
-		log.Fatal(err)
-	} else if err := connect(url); err != nil {
-		log.Fatal(err)
-	}
-
-	if len(flag.Args()) < len(attributes.Mandatory) {
-		flag.Usage()
-		log.Fatal("not enough parameters")
-	}
-
 	// Vérification attributs obligatoires
 	valid := make(map[string]bool)
 	for k, v := range attributes.Mandatory {
@@ -122,6 +111,11 @@ func main() {
 		if !v {
 			log.Fatal("missing parameter ", k)
 		}
+	}
+	if url, err := amqp.ParseURL(urlStr); err != nil {
+		log.Fatal(err)
+	} else if err := connect(url); err != nil {
+		log.Fatal(err)
 	}
 }
 

@@ -14,9 +14,10 @@ const (
 	TO   = "user.agt.routage.to"
 	FROM = "user.agt.routage.from"
 	FILE = "user.agt.routage.file"
+	KEY  = "user.agt.routage.key"
 )
 
-var Mandatory = map[string]bool{TO: true, FROM: true, FILE: true}
+var Mandatory = map[string]bool{TO: false, FROM: true, FILE: true, KEY: false}
 
 type Attributes map[string]string
 
@@ -31,6 +32,10 @@ func (attr *Attributes) Add(k, v string) {
 func (attr Attributes) Get(k string) (string, bool) {
 	v, ok := attr[k]
 	return v, ok
+}
+
+func (attr *Attributes) Remove(k string) {
+	delete(*attr, k)
 }
 
 func (attr Attributes) Marshall() []byte {
@@ -97,12 +102,7 @@ func Split(line, sep string) (s1, s2 string, err error) {
 	return
 }
 
-func (attr Attributes) GetRecipient() (user, host string, err error) {
-	to, ok := attr.Get(TO)
-	if !ok {
-		err = fmt.Errorf("No to: field in attributes")
-		return
-	}
+func GetRecipient(to string) (user, host string, err error) {
 	user, host, err = Split(to, "@")
 	if err != nil {
 		err = fmt.Errorf("malformed recipient %v: %v", to, err)

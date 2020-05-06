@@ -5,6 +5,14 @@
     "version": "0.2.0",
     "configurations": [
         {
+            "name": "Launch send",
+            "type": "go",
+            "request": "launch",
+            "mode": "debug",
+            "program": "${fileDirname}",
+            "env": {"AGT_URL":"amqp://localhost:5672/routage"}
+        },
+        {
             "name": "Launch",
             "type": "go",
             "request": "launch",
