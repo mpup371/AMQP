@@ -25,44 +25,24 @@ func (h *handler) dispatch(attr attributes.Attributes) {
 }
 
 func (h *handler) forward(host string, msg amqp.Message) {
-	var sender proton.Link
-	events := make(chan proton.MessagingEvent)
+	sender := h.session.Sender("sendto:" + host)
+	logger.Debugf("forward", "sender: state=%v", sender.State())
+	sender.SetSndSettleMode(proton.SndSettled)
+	sender.Target().SetAddress(host)
+	h.senders[sender] = msg
+	sender.Open()
+}
 
-	err := h.engine.InjectWait(func() error {
-		if h.session.State().Has(proton.SRemoteClosed | proton.SLocalClosed) {
-			return fmt.Errorf("session closed: %s", h.session.String())
-		}
-		sender = h.session.Sender("sendto:" + host)
-		logger.Debugf("dispatch", "sender: state=%v", sender.State())
-		sender.SetSndSettleMode(proton.SndSettled)
-		sender.Target().SetAddress(host)
-		sender.Open()
-		h.senders[sender] = events //TODO Lock ou pas goroutine
-		return nil
-	})
-	if err != nil {
-		logger.Printf("dispatch", "Error inject: %v", err)
-		return
+func (h *handler) sendMsg(sender proton.Link, msg amqp.Message) {
+	logger.Debugf("sendMsg", "sending on link %v", sender)
+	delivery, err := sender.Send(msg)
+	if err == nil {
+		// delivery.Settle() TODO utile ?
+		logger.Debugf("sendMsg", "%#v", msg)
+		logger.Printf("sendMsg", "message sent to %s", delivery.Link().Name())
+	} else {
+		logger.Printf("sendMsg", "error: %v", err)
 	}
-
-	evt := <-events
-	if evt == 0 {
-		logger.Printf("dispatch", "channel closed: %v", sender.Name())
-	}
-	logger.Debugf("dispatch", "ready to send: %v", evt)
-	h.engine.Inject(func() {
-		if sender.State().Has(proton.SRemoteClosed | proton.SLocalClosed) {
-			logger.Printf("dispatch", "sender closed: %v", sender.Name())
-		}
-		logger.Debugf("sendMsg", "sending on link %v", sender)
-		delivery, err := sender.Send(msg)
-		if err == nil {
-			delivery.Settle()
-			logger.Debugf("sendMsg", "%#v", msg)
-			logger.Printf("sendMsg", "message sent to %s", host)
-		} else {
-			logger.Printf("sendMsg", "error: %v", err)
-		}
-		sender.Close()
-	})
+	sender.Close()
+	// delete(h.senders, sender)TODO
 }

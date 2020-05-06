@@ -46,6 +46,9 @@ const (
 
 PN_TRACE_FRM=1 go run -tags debug . amqp://localhost:5672/queue1
 */
+
+// export AGT_URL=amqp://localhost:5672/routage
+// go run ./send user.agt.routage.to=TOTOTO user.agt.routage.from=111111 user.agt.routage.file=/tmp/data
 package main
 
 import (

@@ -16,12 +16,12 @@ type handler struct {
 	topic   string
 	engine  *proton.Engine
 	session proton.Session
-	senders map[proton.Link]chan proton.MessagingEvent
+	senders map[proton.Link]amqp.Message
 }
 
 func newHandler(topic string) *handler {
 	h := handler{topic: topic}
-	h.senders = make(map[proton.Link]chan proton.MessagingEvent)
+	h.senders = make(map[proton.Link]amqp.Message)
 	return &h
 }
 
@@ -45,7 +45,7 @@ func (h *handler) HandleMessagingEvent(t proton.MessagingEvent, e proton.Event) 
 	case proton.MSessionOpened:
 		logger.Debugf("handler", "session: state=%v", e.Session().State())
 		h.session = e.Session()
-		receiver := e.Session().Receiver("receiver")
+		receiver := e.Session().Receiver("agtRoutage")
 		logger.Debugf("handler", "receiver: state=%v", receiver.State())
 		receiver.SetRcvSettleMode(proton.RcvFirst)
 		receiver.Source().SetAddress(h.topic)
@@ -61,31 +61,26 @@ func (h *handler) HandleMessagingEvent(t proton.MessagingEvent, e proton.Event) 
 			e.Link().Flow(1)
 		}
 	case proton.MMessage:
-		attr := route(e.Delivery())
+		attr := accept(e.Delivery())
 		if attr != nil {
-			go func() {
-				if attr != nil {
-					h.dispatch(attr)
-				}
-				h.engine.Inject(func() {
-					e.Link().Flow(1)
-				})
-			}()
-		} else {
-			e.Link().Flow(1)
+			h.dispatch(attr)
 		}
+	case proton.MSettled:
+		e.Link().Flow(1)
 	case proton.MSendable:
-		if ch, ok := h.senders[e.Link()]; ok {
-			ch <- t
+		if msg, ok := h.senders[e.Link()]; ok {
+			h.sendMsg(e.Link(), msg)
 		} else {
 			logger.Printf("handler", "Sender not found: %s", e.Link().Name())
 		}
 	case proton.MLinkClosed:
-		if ch, ok := h.senders[e.Link()]; ok {
-			close(ch)
+		if _, ok := h.senders[e.Link()]; ok {
 			delete(h.senders, e.Link())
 		} else {
-			logger.Printf("handler", "receive link closed, closing session")
+			logger.Printf("handler", "Sender not found: %s", e.Link().Name())
+		}
+		if e.Link().Source().Address() == h.topic { // ne doit jamais arriver
+			logger.Printf("handler", "receive link closed by peer")
 			e.Session().Close()
 		}
 	case proton.MSessionClosed:
@@ -98,37 +93,37 @@ func (h *handler) HandleMessagingEvent(t proton.MessagingEvent, e proton.Event) 
 	}
 }
 
-func route(delivery proton.Delivery) attributes.Attributes {
+func accept(delivery proton.Delivery) attributes.Attributes {
 	msg, err := delivery.Message()
 	if err != nil {
 		logger.Printf("route", "Error reading message: %v", err)
-		delivery.Reject()
+		delivery.Update(proton.Rejected)
 		return nil
 	}
 	logger.Printf("route", "Message: body=%v", msg.Body())
 	attr, err := decode(msg)
 	if err != nil {
 		logger.Printf("route", "Error persisting attributes: %v", err)
-		delivery.Reject()
+		delivery.Update(proton.Rejected)
 		return nil
 	}
 	if _, _, err := attr.GetRecipient(); err != nil {
 		logger.Printf("route", "recipient not found (%v)", err)
-		delivery.Reject()
+		delivery.Update(proton.Rejected)
 		return nil
 	}
 	path, err := attr.GetFile()
 	if err != nil {
 		logger.Printf("route", "Error : file path not found in attributes")
-		delivery.Reject()
+		delivery.Update(proton.Rejected)
 		return nil
 	}
 	if err := persist(attr, path); err != nil {
 		logger.Printf("route", "Error persisting attributes: %v", err)
-		delivery.Reject() //TODO release + sleep si  fs full
+		delivery.Update(proton.Rejected) //TODO release
 		return nil
 	}
-	delivery.Accept()
+	delivery.Update(proton.Accepted)
 	return attr
 }
 

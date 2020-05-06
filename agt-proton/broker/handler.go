@@ -140,7 +140,7 @@ func (h *handler) recvMsg(e proton.Event, l *link) {
 
 // TODO goroutine
 func (h *handler) sendMsg(sender proton.Link, l *link) {
-	logger.Debugf("sendMsg", "sending on link %v", sender)
+	logger.Debugf("sendMsg", "waiting to send on link %v", sender)
 
 	msg := l.q.Peek()
 	for ; msg == nil; msg = l.q.Peek() {
@@ -148,8 +148,8 @@ func (h *handler) sendMsg(sender proton.Link, l *link) {
 	}
 
 	if _, err := sender.Send(msg); err == nil {
-		logger.Debugf("sendMsg", "msg=%#v", msg)
+		logger.Debugf("sendMsg", " send msg=%#v", msg)
 	} else {
-		logger.Printf(h.engine, "error: %v", err)
+		logger.Printf(h.engine, "send error: %v", err)
 	}
 }
