@@ -47,8 +47,5 @@ func connect(url *url.URL) error {
 	handler.engine = engine
 	err = engine.Run()
 	logger.Debugf("connect", "Error engine =%v", engine.Error())
-	if err != nil {
-		return err
-	}
-	return nil
+	return err
 }

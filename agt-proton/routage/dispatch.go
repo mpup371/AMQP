@@ -37,7 +37,7 @@ func (h *handler) forward(host string, msg amqp.Message) {
 		sender.SetSndSettleMode(proton.SndSettled)
 		sender.Target().SetAddress(host)
 		sender.Open()
-		h.senders[sender] = events
+		h.senders[sender] = events //TODO Lock ou pas goroutine
 		return nil
 	})
 	if err != nil {
