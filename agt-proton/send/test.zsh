@@ -1,4 +1,9 @@
-for n in {0..100}
+
+export AGT_URL=amqp://localhost:5672/routage
+rm /tmp/date*
+
+for i in {0..10}
 do
-    ./send  amqp://localhost:5672/queue1&
+date > /tmp/date$i
+go run ./send user.agt.routage.key=clef1 user.agt.routage.from=from@ici user.agt.routage.file=/tmp/date$i
 done

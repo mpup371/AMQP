@@ -71,7 +71,7 @@ func rm(path string) {
 }
 
 //TODO mock session pour tests unitaires
-//TODO garder le sender ouvert
+
 func (h *handler) forward(to string, msg amqp.Message) {
 	user, host, err := attributes.GetRecipient(to)
 	if err != nil {
@@ -79,12 +79,7 @@ func (h *handler) forward(to string, msg amqp.Message) {
 		return
 	}
 	logger.Printf("forward", "sending message to %s@%s", user, host)
-	sender := h.session.Sender("sendTo:" + host)
-	logger.Debugf("forward", "sender: state=%v", sender.State())
-	sender.SetSndSettleMode(proton.SndSettled)
-	sender.Target().SetAddress(host)
-	h.senders[sender] = msg
-	sender.Open()
+	h.push(host, msg)
 }
 
 func (h *handler) sendMsg(sender proton.Link, msg amqp.Message) {
@@ -98,5 +93,4 @@ func (h *handler) sendMsg(sender proton.Link, msg amqp.Message) {
 	} else {
 		logger.Printf("sendMsg", "error: %v", err)
 	}
-	sender.Close()
 }

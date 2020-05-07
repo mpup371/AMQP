@@ -8,6 +8,7 @@ import (
 	"jf/AMQP/agt-proton/util"
 	"jf/AMQP/logger"
 
+	fifo "github.com/foize.bck/go.fifo"
 	"qpid.apache.org/amqp"
 	"qpid.apache.org/proton"
 )
@@ -16,13 +17,39 @@ type handler struct {
 	topic   string
 	engine  *proton.Engine
 	session proton.Session
-	senders map[proton.Link]amqp.Message
+	senders map[string]*fifo.Queue
 }
 
 func newHandler(topic string) *handler {
 	h := handler{topic: topic}
-	h.senders = make(map[proton.Link]amqp.Message)
+	h.senders = make(map[string]*fifo.Queue)
 	return &h
+}
+
+func (h *handler) push(host string, msg amqp.Message) {
+
+	if _, ok := h.senders[host]; !ok {
+		h.senders[host] = fifo.NewQueue()
+		sender := h.session.Sender("sendTo:" + host)
+		sender.SetSndSettleMode(proton.SndSettled)
+		sender.Target().SetAddress(host)
+		sender.Open()
+	}
+	h.senders[host].Add(msg)
+}
+func (h *handler) pop(host string) amqp.Message {
+	if q, ok := h.senders[host]; ok {
+		msg, size := q.Next()
+		logger.Debugf("pop", "host=%s, msg=%v, size=%d", host, msg, size)
+		if msg == nil {
+			logger.Printf("pop", "no message found for %s", host)
+		} else {
+			return msg.(amqp.Message)
+		}
+	} else {
+		logger.Printf("pop", "Sender not found: %s", host)
+	}
+	return nil
 }
 
 func (h *handler) HandleMessagingEvent(t proton.MessagingEvent, e proton.Event) {
@@ -68,16 +95,19 @@ func (h *handler) HandleMessagingEvent(t proton.MessagingEvent, e proton.Event) 
 	case proton.MSettled:
 		e.Link().Flow(1)
 	case proton.MSendable:
-		if msg, ok := h.senders[e.Link()]; ok {
+		host := e.Link().Target().Address()
+		logger.Debugf("handler", "link sendable host=%s", host)
+		if msg := h.pop(host); msg != nil {
 			h.sendMsg(e.Link(), msg)
-		} else {
-			logger.Printf("handler", "Sender not found: %s", e.Link().Name())
 		}
+		// ne doit pas arriver:
+		// on ne ferme pas les links
 	case proton.MLinkClosed:
-		if _, ok := h.senders[e.Link()]; ok {
-			delete(h.senders, e.Link())
+		host := e.Link().Target().Address()
+		if _, ok := h.senders[host]; ok {
+			delete(h.senders, host)
 		} else {
-			logger.Printf("handler", "Sender not found: %s", e.Link().Name())
+			logger.Printf("handler", "Close sender not found: %s", e.Link().Name())
 		}
 		if e.Link().Source().Address() == h.topic { // ne doit jamais arriver
 			logger.Printf("handler", "receive link closed by peer")
