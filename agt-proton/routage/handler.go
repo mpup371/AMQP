@@ -8,48 +8,40 @@ import (
 	"jf/AMQP/agt-proton/util"
 	"jf/AMQP/logger"
 
-	fifo "github.com/foize.bck/go.fifo"
 	"qpid.apache.org/amqp"
 	"qpid.apache.org/proton"
 )
+
+type sender struct {
+	sendable bool
+	message  amqp.Message
+	link     proton.Link
+}
 
 type handler struct {
 	topic   string
 	engine  *proton.Engine
 	session proton.Session
-	senders map[string]*fifo.Queue
+	senders map[string]*sender
 }
 
 func newHandler(topic string) *handler {
 	h := handler{topic: topic}
-	h.senders = make(map[string]*fifo.Queue)
+	h.senders = make(map[string]*sender)
 	return &h
 }
 
-func (h *handler) push(host string, msg amqp.Message) {
-
-	if _, ok := h.senders[host]; !ok {
-		h.senders[host] = fifo.NewQueue()
-		sender := h.session.Sender("sendTo:" + host)
-		sender.SetSndSettleMode(proton.SndSettled)
-		sender.Target().SetAddress(host)
-		sender.Open()
+func (h *handler) get(host string) *sender {
+	s, ok := h.senders[host]
+	if !ok {
+		snd := h.session.Sender("sendTo:" + host)
+		snd.SetSndSettleMode(proton.SndSettled)
+		snd.Target().SetAddress(host)
+		snd.Open()
+		s = &sender{link: snd}
+		h.senders[host] = s
 	}
-	h.senders[host].Add(msg)
-}
-func (h *handler) pop(host string) amqp.Message {
-	if q, ok := h.senders[host]; ok {
-		msg, size := q.Next()
-		logger.Debugf("pop", "host=%s, msg=%v, size=%d", host, msg, size)
-		if msg == nil {
-			logger.Printf("pop", "no message found for %s", host)
-		} else {
-			return msg.(amqp.Message)
-		}
-	} else {
-		logger.Printf("pop", "Sender not found: %s", host)
-	}
-	return nil
+	return s
 }
 
 func (h *handler) HandleMessagingEvent(t proton.MessagingEvent, e proton.Event) {
@@ -97,10 +89,16 @@ func (h *handler) HandleMessagingEvent(t proton.MessagingEvent, e proton.Event) 
 	case proton.MSendable:
 		host := e.Link().Target().Address()
 		logger.Debugf("handler", "link sendable host=%s", host)
-		if msg := h.pop(host); msg != nil {
-			h.sendMsg(e.Link(), msg)
+		s := h.get(host)
+		logger.Debugf("handler", "sender : %v", s)
+		if s.message != nil {
+			h.sendMsg(e.Link(), s.message)
+			s.message = nil
+			s.sendable = false
+		} else {
+			s.sendable = true
 		}
-		// ne doit pas arriver:
+		// ne doit pas arriver car
 		// on ne ferme pas les links
 	case proton.MLinkClosed:
 		host := e.Link().Target().Address()

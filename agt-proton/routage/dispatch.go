@@ -79,7 +79,14 @@ func (h *handler) forward(to string, msg amqp.Message) {
 		return
 	}
 	logger.Printf("forward", "sending message to %s@%s", user, host)
-	h.push(host, msg)
+	s := h.get(host)
+	if s.sendable {
+		h.sendMsg(s.link, msg)
+		s.sendable = false
+		s.message = nil
+	} else {
+		s.message = msg
+	}
 }
 
 func (h *handler) sendMsg(sender proton.Link, msg amqp.Message) {

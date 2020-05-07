@@ -98,6 +98,7 @@ func (h *handler) HandleMessagingEvent(t proton.MessagingEvent, e proton.Event) 
 			break
 		}
 		h.recvMsg(e, l)
+		e.Link().Flow(1)
 	case proton.MAccepted:
 		l, ok := h.links[e.Link()]
 		if !ok {
