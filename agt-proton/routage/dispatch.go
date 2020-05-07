@@ -27,12 +27,12 @@ func (h *handler) dispatch(attr attributes.Attributes) {
 			// donc il faut supprimer l'original quoi qu'il arrive
 			defer rm(file)
 			for _, to := range recipients {
-				newAttr := attr
+				newAttr := attr.Copy()
 				newAttr.Remove(attributes.KEY)
-				newAttr.Add(attributes.TO, to)
+				newAttr.Put(attributes.TO, to)
 
 				if newFile, err := link(file, to); err == nil {
-					newAttr.Add(attributes.FILE, newFile)
+					newAttr.Put(attributes.FILE, newFile)
 				} else {
 					logger.Printf("dispatch", "Error link file %s (%v)", file, err)
 					return

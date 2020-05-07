@@ -13,10 +13,10 @@ import (
 func mockMessage() {
 
 	attr = attributes.NewAttributes()
-	attr.Add("user.agt.routage.from", "moi@mamaison")
-	attr.Add("user.agt.routage.to", "toi@tamaison")
-	attr.Add("user.agt.routage.file", "/tmp/date")
-	attr.Add("user.agt.data.bdpe.numero", "123456")
+	attr.Put("user.agt.routage.from", "moi@mamaison")
+	attr.Put("user.agt.routage.to", "toi@tamaison")
+	attr.Put("user.agt.routage.file", "/tmp/date")
+	attr.Put("user.agt.data.bdpe.numero", "123456")
 
 }
 
@@ -54,22 +54,24 @@ func TestFileNotFound(t *testing.T) {
 
 func mockMessageKey() {
 	attr = attributes.NewAttributes()
-	attr.Add("user.agt.routage.from", "moi@mamaison")
-	attr.Add("user.agt.routage.file", "/tmp/date")
-	attr.Add("user.agt.data.bdpe.numero", "123456")
-	attr.Add("user.agt.routage.key", "clef1")
+	attr.Put("user.agt.routage.from", "moi@mamaison")
+	attr.Put("user.agt.routage.file", "/tmp/date")
+	attr.Put("user.agt.data.bdpe.numero", "123456")
+	attr.Put("user.agt.routage.key", "clef1")
 
 }
 func TestClef(t *testing.T) {
 	mockMessageKey()
 	os.Remove("/tmp/date")
+	os.Remove("/tmp/date-client1@host1")
+	os.Remove("/tmp/date-client2@host2")
 	exec.Command("sh", "-c", "date > /tmp/date").Run()
 	url, _ := amqp.ParseURL("amqp://localhost:5672/routage")
 	if err := connect(url); err != nil {
 		t.Error(err)
 	}
 	time.Sleep(1 * time.Second)
-	if attr, err := attributes.GetAttributes("/tmp/date"); err == nil {
+	if attr, err := attributes.GetAttributes("/tmp/date-client1@host1"); err == nil {
 		if len(attr) != 4 {
 			t.Error("len(attr) != 4")
 		}

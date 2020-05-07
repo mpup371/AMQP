@@ -25,7 +25,7 @@ func NewAttributes() Attributes {
 	return make(Attributes)
 }
 
-func (attr *Attributes) Add(k, v string) {
+func (attr *Attributes) Put(k, v string) {
 	(*attr)[k] = v
 }
 
@@ -36,6 +36,14 @@ func (attr Attributes) Get(k string) (string, bool) {
 
 func (attr *Attributes) Remove(k string) {
 	delete(*attr, k)
+}
+
+func (attr Attributes) Copy() Attributes {
+	nattr := NewAttributes()
+	for k, v := range attr {
+		nattr[k] = v
+	}
+	return nattr
 }
 
 func (attr Attributes) Marshall() []byte {
@@ -60,7 +68,7 @@ func Unmarshal(body []byte) (Attributes, error) {
 			logger.Printf("Unmarshal", "Unmarshal attributes: %v", err)
 			continue
 		}
-		attr.Add(k, v)
+		attr.Put(k, v)
 
 	}
 	return attr, scanner.Err()
@@ -83,7 +91,7 @@ func GetAttributes(path string) (attr Attributes, err error) {
 	}
 	for _, k := range keys {
 		if b, e := xattr.Get(path, k); e == nil {
-			attr.Add(k, (string)(b))
+			attr.Put(k, (string)(b))
 		} else {
 			logger.Printf("xattr", "error reading attribute %s on file %s: %v", k, path, e)
 		}

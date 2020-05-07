@@ -108,7 +108,7 @@ func main() {
 			log.Fatal("incorrect parameter: ", p)
 		}
 		valid[s[0]] = true
-		attr.Add(s[0], s[1])
+		attr.Put(s[0], s[1])
 	}
 	for k, v := range valid {
 		if !v {
