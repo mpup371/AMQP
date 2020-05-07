@@ -119,7 +119,7 @@ func (h *handler) HandleMessagingEvent(t proton.MessagingEvent, e proton.Event) 
 			n := l.q.Pop()
 			logger.Printf(h.engine, "message sent from %s(%d): rejected", l.topic, n)
 		}
-		//TODO suppression fichier
+		//TODO Release
 	}
 }
 

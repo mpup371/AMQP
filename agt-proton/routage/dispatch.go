@@ -58,6 +58,7 @@ func (h *handler) dispatch(attr attributes.Attributes) {
 	}
 }
 
+//TODO: path unique
 func link(path, suffix string) (newPath string, err error) {
 	newPath = path + "-" + suffix
 	err = os.Link(path, newPath)
@@ -70,6 +71,7 @@ func rm(path string) {
 }
 
 //TODO mock session pour tests unitaires
+//TODO garder le sender ouvert
 func (h *handler) forward(to string, msg amqp.Message) {
 	user, host, err := attributes.GetRecipient(to)
 	if err != nil {
@@ -89,12 +91,12 @@ func (h *handler) sendMsg(sender proton.Link, msg amqp.Message) {
 	logger.Debugf("sendMsg", "sending on link %v", sender)
 	delivery, err := sender.Send(msg)
 	if err == nil {
-		// delivery.Settle() TODO utile ?
+		logger.Debugf("sendMsg", "Settle delivery")
+		delivery.Settle()
 		logger.Debugf("sendMsg", "%#v", msg)
 		logger.Printf("sendMsg", "message sent to %s", delivery.Link().Name())
 	} else {
 		logger.Printf("sendMsg", "error: %v", err)
 	}
 	sender.Close()
-	// delete(h.senders, sender)TODO
 }

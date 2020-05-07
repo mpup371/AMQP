@@ -14,7 +14,6 @@ type chunk struct {
 }
 
 // newChunk allocate a chunk of demanded size
-//TODO error if not enough memory
 func newChunk(size uint) *chunk {
 	return &chunk{
 		make([]interface{}, size),
