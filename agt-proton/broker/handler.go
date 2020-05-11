@@ -89,7 +89,7 @@ func (h *handler) HandleMessagingEvent(t proton.MessagingEvent, e proton.Event) 
 		if topic == "admin" {
 			h.sendAdmin(e.Link())
 		} else {
-			h.sendMsg(e.Link(), l)
+			go h.sendMsg(e.Injecter(), e.Link(), l)
 		}
 	case proton.MMessage:
 		l, ok := h.links[e.Link()]
@@ -109,7 +109,6 @@ func (h *handler) HandleMessagingEvent(t proton.MessagingEvent, e proton.Event) 
 			n := l.q.Pop()
 			logger.Printf(h.engine, "message sent from %s(%d): accepted", l.topic, n)
 		}
-		//TODO suppression fichier
 	case proton.MRejected:
 		l, ok := h.links[e.Link()]
 		if !ok {
@@ -139,18 +138,19 @@ func (h *handler) recvMsg(e proton.Event, l *link) {
 	}
 }
 
-// TODO goroutine
-func (h *handler) sendMsg(sender proton.Link, l *link) {
+func (h *handler) sendMsg(injecter proton.Injecter, sender proton.Link, l *link) {
 	logger.Debugf("sendMsg", "waiting to send on link %v", sender)
 
 	msg := l.q.Peek()
 	for ; msg == nil; msg = l.q.Peek() {
 		time.Sleep(1 * time.Second)
 	}
+	injecter.Inject(func() {
+		if _, err := sender.Send(msg); err == nil {
+			logger.Debugf("sendMsg", " send msg=%#v", msg)
+		} else {
+			logger.Printf(h.engine, "send error: %v", err)
+		}
+	})
 
-	if _, err := sender.Send(msg); err == nil {
-		logger.Debugf("sendMsg", " send msg=%#v", msg)
-	} else {
-		logger.Printf(h.engine, "send error: %v", err)
-	}
 }

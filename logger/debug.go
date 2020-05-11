@@ -3,7 +3,9 @@
 package logger
 
 import (
+	"jf/AMQP/agt-proton/util"
 	"log"
+	"os"
 )
 
 const (
@@ -19,6 +21,7 @@ func init() {
 	Debugf = debugf
 	Printf = printf
 	Fatalf = fatalf
+	logger = log.New(os.Stderr, util.GetName(), log.Ldate|log.Ltime|log.LUTC|log.Lmicroseconds|log.Lmsgprefix)
 }
 
 func debugf(id string, format string, data ...interface{}) {

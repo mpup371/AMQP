@@ -4,6 +4,7 @@ PN_TRACE_FRM=1 go run -tags debug ./receive amqp://localhost:5672/queue1
 package main
 
 import (
+	"fmt"
 	"jf/AMQP/agt-proton/util"
 	"jf/AMQP/logger"
 
@@ -60,7 +61,8 @@ func (h *handler) HandleMessagingEvent(t proton.MessagingEvent, e proton.Event) 
 		*/
 	case proton.MMessage:
 		if msg, err := e.Delivery().Message(); err == nil {
-			logger.Printf("handler", "Message: body=%v", msg.Body())
+			logger.Printf("handler", "Message: %v\n", e.Delivery().HasMessage())
+			fmt.Println(msg.Body())
 			e.Delivery().Accept()
 		} else {
 			logger.Printf("handler", "Error: %v", err)

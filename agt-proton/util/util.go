@@ -12,9 +12,9 @@ func GetName() string {
 	host, err := os.Hostname()
 	cmd := filepath.Base(os.Args[0])
 	if err == nil {
-		name = fmt.Sprintf("%s@%s[%d]", cmd, host, os.Getegid())
+		name = fmt.Sprintf("%s@%s[%d]", cmd, host, os.Getpid())
 	} else {
-		name = fmt.Sprintf("%s[%d]", cmd, os.Getegid())
+		name = fmt.Sprintf("%s[%d]", cmd, os.Getpid())
 	}
 	return name
 }
